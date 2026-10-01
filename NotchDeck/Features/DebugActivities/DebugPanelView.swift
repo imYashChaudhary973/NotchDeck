@@ -26,6 +26,15 @@ struct DebugPanelView: View {
                         simulate("Meeting in 5 s", "calendar.badge.clock") { provider.simulateMeeting(startsIn: 5) }
                         Button("Clear All", role: .destructive, action: provider.clearAll)
                     }
+                    GridRow {
+                        simulate("Volume (repeat)", "speaker.wave.3") { provider.simulateVolume() }
+                        simulate("Keep Awake", "cup.and.saucer") { provider.simulateKeepAwake() }
+                        simulate("System Stats", "cpu") { provider.simulateSystemStats() }
+                    }
+                    GridRow {
+                        simulate("Command Center Demo", "square.grid.2x2") { provider.simulateCommandCenterDemo() }
+                            .gridCellColumns(2)
+                    }
                 }
             }
 

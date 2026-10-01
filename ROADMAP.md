@@ -46,7 +46,7 @@ The detailed brief for every phase — including its *Coding Agent Prompt* — i
 
 **Status:** In Review — implemented on `feature/phase-1-foundation`; complete once merged to `main`.
 
-Verification so far: 65 unit tests pass; panel geometry checked on a notched built-in display and an external non-notched display (virtual notch); Idle → Live → Peek → Expanded → Collapse, Shelf, attention auto-peek, interruption and restoration exercised via the debug panel; idle CPU 0%, 0 wakeups. Not yet manually verified: full-screen apps / Spaces switching, real file drag over the notch, display hot-plug, Launch at Login from `/Applications`.
+Verification so far: 80 unit tests pass; every notch state rendered off-screen and reviewed; panel geometry checked on a notched built-in display and an external non-notched display (virtual notch); Idle → Live → Peek → Expanded → Collapse, Shelf, attention auto-peek, interruption and restoration exercised via the debug panel; idle CPU 0%, 0 wakeups. Not yet manually verified: full-screen apps / Spaces switching, real file drag over the notch, display hot-plug, Launch at Login from `/Applications`.
 
 **Goals**
 - Establish the notch surface and the core pipeline every later feature depends on.

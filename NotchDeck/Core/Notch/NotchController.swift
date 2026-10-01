@@ -65,7 +65,11 @@ final class NotchController {
         hostingView.onPointerEntered = { [weak self] in self?.pointerEntered() }
         hostingView.onPointerExited = { [weak self] in self?.pointerExited() }
         hostingView.onClickOutside = { [weak self] in self?.send(.clickedOutside) }
-        hostingView.onDragEntered = { [weak self] in self?.send(.dragEntered) }
+        hostingView.onDragUpdated = { [weak self] location, description in
+            guard let self else { return }
+            self.send(.dragEntered)
+            self.model.updateShelfDrag(ShelfDrag(location: location, itemDescription: description))
+        }
         hostingView.onDragExited = { [weak self] in self?.send(.dragExited) }
         hostingView.onDrop = { [weak self] in self?.send(.dropCompleted) }
         panel.contentView = hostingView
@@ -117,11 +121,30 @@ final class NotchController {
     private func resolutionChanged(from old: ActivityResolution, to new: ActivityResolution) {
         send(.activityAvailabilityChanged(hasActivity: new.primary != nil))
 
-        guard let primary = new.primary, primary.priority.requestsAttention else { return }
-        let alreadyAttended = old.primary?.key == primary.key && old.primary?.priority.requestsAttention == true
-        if !alreadyAttended {
+        if Self.shouldReveal(from: old, to: new) {
             send(.attentionRequested)
+            // Repeated updates (e.g. volume changes) keep an open reveal alive.
+            updateAttentionPeekTimeout()
+        } else if machine.isAttentionPeek,
+                  old.primary?.presentation.revealsOnUpdate == true,
+                  old.primary?.key != new.primary?.key {
+            // A HUD-style reveal ends as soon as its activity stops being primary.
+            send(.peekTimedOut)
         }
+    }
+
+    /// Whether a resolution change should briefly reveal the notch.
+    ///
+    /// - A primary activity that requests attention reveals when it appears or escalates.
+    /// - A primary activity with `revealsOnUpdate` reveals on every change.
+    static func shouldReveal(from old: ActivityResolution, to new: ActivityResolution) -> Bool {
+        guard let primary = new.primary else { return false }
+        if primary.presentation.revealsOnUpdate {
+            return old.primary != primary
+        }
+        guard primary.priority.requestsAttention else { return false }
+        let alreadyAttended = old.primary?.key == primary.key && old.primary?.priority.requestsAttention == true
+        return !alreadyAttended
     }
 
     private func pointerEntered() {

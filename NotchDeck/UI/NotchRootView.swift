@@ -65,7 +65,7 @@ private struct NotchSurface: View {
         case .expanded:
             ExpandedView(model: model, notchSize: notchSize)
         case .shelf:
-            ShelfDropView(notchSize: notchSize)
+            ShelfDropView(model: model, notchSize: notchSize)
         }
     }
 }

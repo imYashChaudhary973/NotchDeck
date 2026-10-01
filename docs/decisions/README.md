@@ -9,6 +9,7 @@ ADRs are created when a decision is actually made — never in advance.
 | [0001](0001-notch-window-strategy.md) | Notch window strategy | Accepted |
 | [0002](0002-activity-engine.md) | Activity Engine and notch state machine | Accepted |
 | [0003](0003-app-runtime-configuration.md) | App runtime configuration | Accepted (sandbox to revisit) |
+| [0004](0004-command-center-presentation.md) | Command center presentation | Accepted |
 
 ## When to write one
 

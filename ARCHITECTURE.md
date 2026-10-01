@@ -66,9 +66,31 @@ The **resting state** is `liveActivity` when there is a primary activity, otherw
 | --- | --- |
 | `idle` | Exactly the physical notch (or a 180 pt virtual notch on displays without one). |
 | `liveActivity` | Notch plus a 40 pt "ear" on each side: glyph on the leading ear, accessory (countdown, progress ring, symbol) on the trailing ear. |
-| `peek` | 360 pt wide: compact row plus title and subtitle. |
-| `expanded` | 480 pt wide; height fits the measured content (56–280 pt below the notch row): primary activity with progress and actions, the next two queued activities, and a Settings button. |
-| `shelf` | Drop target. Phase 1 detects drags but refuses drops (the File Shelf is Phase 4). |
+| `peek` | 420 pt wide: icon tile and status beside the notch, then title and subtitle — or a segmented level bar for `level` content (volume HUD). |
+| `expanded` | The **command center**, 600 pt wide, height fits its content (56–300 pt below the notch row). Section tabs sit beside the notch; the featured activity gets a large card and the next four go in a widget column. See below. |
+| `shelf` | Drop target with three tiles (Tray / Copy / AirDrop) and the dragged item's name; the tile under the pointer highlights. Phase 1 refuses drops (the File Shelf is Phase 4). |
+
+### Command center
+
+`CommandCenterLayout` (pure, unit tested) derives the expanded layout from the resolution:
+
+- **Tabs:** *Overview* plus one tab per `ActivityKind` that has live activities (fixed order: music, meeting, timer, transfers, agents, clipboard, system). A purple dot marks tabs with an activity that requests attention. Tabs are hidden when only Overview exists.
+- **Featured card:** the first activity of the selected section — in Overview, the engine's primary activity, so priority still decides prominence.
+- **Widget column:** the next four activities, then "+N more".
+
+### Activity content styles
+
+Providers choose how their activity is drawn in detail through `ActivityPresentation.content` — they describe data, the notch renders it:
+
+| Content | Rendered as | Intended for |
+| --- | --- | --- |
+| `.standard` | Title, subtitle, countdown/progress, action buttons | most activities |
+| `.media(MediaContent)` | Now Playing card: artwork, transport buttons, playback progress (ticks once a second only while visible and playing) | music (Phase 3) |
+| `.level(LevelContent)` | Segmented level bar (HUD) | volume (Phase 2) |
+| `.metric(MetricContent)` | Small bar with value | CPU, memory (Phase 2) |
+| `.toggle(ToggleContent)` | Switch | Keep Awake (Phase 2) |
+
+Controls (transport buttons, switches) invoke action IDs that the engine routes back to the owning provider (`ActivityEngine.perform(actionID:on:)`). `statusText` is a short status for Peek (e.g. "Needs approval"); `revealsOnUpdate` makes HUD-style activities briefly reveal the notch on every update (`NotchController.shouldReveal`).
 
 ## Adding a Feature: Registering an Activity Provider
 
@@ -189,5 +211,6 @@ Significant decisions are recorded in [`docs/decisions/`](docs/decisions/):
 - [0001 — Notch window strategy](docs/decisions/0001-notch-window-strategy.md)
 - [0002 — Activity engine and notch state machine](docs/decisions/0002-activity-engine.md)
 - [0003 — App runtime configuration](docs/decisions/0003-app-runtime-configuration.md)
+- [0004 — Command center presentation](docs/decisions/0004-command-center-presentation.md)
 
 Write an ADR when a decision is hard to reverse, affects multiple domains, or chooses between real alternatives. See [`docs/decisions/README.md`](docs/decisions/README.md) for the template.

@@ -10,7 +10,8 @@ final class NotchHostingView<Content: View>: NSHostingView<Content> {
     var onPointerEntered: (() -> Void)?
     var onPointerExited: (() -> Void)?
     var onClickOutside: (() -> Void)?
-    var onDragEntered: (() -> Void)?
+    /// Called when a drag enters or moves, with its location in this view and an item description.
+    var onDragUpdated: ((CGPoint, String) -> Void)?
     var onDragExited: (() -> Void)?
     var onDrop: (() -> Void)?
 
@@ -117,12 +118,32 @@ final class NotchHostingView<Content: View>: NSHostingView<Content> {
     // MARK: Drag and drop
 
     override func draggingEntered(_ sender: any NSDraggingInfo) -> NSDragOperation {
-        onDragEntered?()
+        reportDrag(sender)
         return .copy
     }
 
     override func draggingUpdated(_ sender: any NSDraggingInfo) -> NSDragOperation {
-        .copy
+        reportDrag(sender)
+        return .copy
+    }
+
+    private func reportDrag(_ sender: any NSDraggingInfo) {
+        let location = convert(sender.draggingLocation, from: nil)
+        // SwiftUI's coordinate space is top-left based.
+        let topLeft = isFlipped ? location : CGPoint(x: location.x, y: bounds.height - location.y)
+        onDragUpdated?(topLeft, Self.describe(sender.draggingPasteboard))
+    }
+
+    /// A short description of dragged content, e.g. a file name or "3 items". Never reads file contents.
+    static func describe(_ pasteboard: NSPasteboard) -> String {
+        let urls = pasteboard.readObjects(forClasses: [NSURL.self], options: nil) as? [URL] ?? []
+        let files = urls.filter(\.isFileURL)
+        if files.count == 1 { return files[0].lastPathComponent }
+        if files.count > 1 { return "\(files.count) items" }
+        if let url = urls.first { return url.host() ?? "Link" }
+        if pasteboard.canReadObject(forClasses: [NSImage.self], options: nil) { return "Image" }
+        if pasteboard.string(forType: .string) != nil { return "Text" }
+        return "Item"
     }
 
     override func draggingExited(_ sender: (any NSDraggingInfo)?) {

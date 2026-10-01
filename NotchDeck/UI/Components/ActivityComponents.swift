@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 extension ActivityAccent {
@@ -48,6 +49,7 @@ struct CompactAccessoryView: View {
         case .text(let text):
             Text(text)
                 .font(.system(size: fontSize, weight: .semibold))
+                .foregroundStyle(activity.presentation.accent == .neutral ? .white : activity.presentation.accent.color)
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
         case .symbol(let name):
@@ -96,5 +98,81 @@ struct ProgressRing: View {
         .accessibilityElement()
         .accessibilityLabel("Progress")
         .accessibilityValue(Text(progress, format: .percent.precision(.fractionLength(0))))
+    }
+}
+
+/// An activity's symbol on a rounded tile.
+///
+/// - `filled`: solid accent tile with a white symbol (app-icon look, used in Peek).
+/// - otherwise: a subtle tinted tile with the symbol in the accent color (used in lists).
+struct IconTile: View {
+    let presentation: ActivityPresentation
+    var size: CGFloat = 22
+    var filled = false
+
+    var body: some View {
+        let accent = presentation.accent
+        let tint = accent == .neutral ? Color.white : accent.color
+        Image(systemName: presentation.symbolName)
+            .font(.system(size: size * 0.5, weight: .semibold))
+            .foregroundStyle(filled ? .white : tint)
+            .tintedSymbolInsideClip()
+            .frame(width: size, height: size)
+            .background(
+                RoundedRectangle(cornerRadius: size * 0.26, style: .continuous)
+                    .fill(filled ? tint.opacity(accent == .neutral ? 0.25 : 1) : tint.opacity(0.16))
+            )
+            .accessibilityHidden(true)
+    }
+}
+
+/// A thin capsule bar for a 0…1 value.
+struct MetricBar: View {
+    let value: Double
+    var tint: Color = .white
+    var height: CGFloat = 5
+
+    var body: some View {
+        GeometryReader { proxy in
+            ZStack(alignment: .leading) {
+                Capsule().fill(.white.opacity(0.15))
+                Capsule().fill(tint).frame(width: max(proxy.size.width * value, value > 0 ? height : 0))
+            }
+        }
+        .frame(height: height)
+        .animation(.easeOut(duration: 0.25), value: value)
+        .accessibilityElement()
+        .accessibilityValue(Text(value, format: .percent.precision(.fractionLength(0))))
+    }
+}
+
+/// A segmented bar for a 0…1 level, fading from white to the accent color (volume HUD style).
+struct SegmentedLevelBar: View {
+    let value: Double
+    var tint: Color = .orange
+    var segments = 40
+    var height: CGFloat = 18
+
+    var body: some View {
+        let filled = Int((value * Double(segments)).rounded())
+        HStack(spacing: 0) {
+            ForEach(0..<segments, id: \.self) { index in
+                Capsule()
+                    .fill(index < filled ? color(at: index) : Color.white.opacity(0.14))
+                    .frame(width: 3, height: height)
+                    .frame(maxWidth: .infinity)
+            }
+        }
+        .animation(.easeOut(duration: 0.12), value: filled)
+        .accessibilityElement()
+        .accessibilityLabel("Level")
+        .accessibilityValue(Text(value, format: .percent.precision(.fractionLength(0))))
+    }
+
+    private func color(at index: Int) -> Color {
+        let fraction = Double(index) / Double(max(segments - 1, 1))
+        // Blend from white to the tint across the bar (Color.mix needs macOS 15).
+        let blended = NSColor.white.blended(withFraction: fraction, of: NSColor(tint)) ?? NSColor(tint)
+        return Color(nsColor: blended)
     }
 }

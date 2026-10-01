@@ -18,14 +18,14 @@ struct NotchMetrics: Equatable, Sendable {
 enum NotchLayout {
     /// Width of each side "ear" beside the notch in the compact Live Activity.
     static let compactEarWidth: CGFloat = 40
-    static let peekWidth: CGFloat = 360
+    static let peekWidth: CGFloat = 420
     static let peekContentHeight: CGFloat = 56
-    static let expandedWidth: CGFloat = 480
+    static let expandedWidth: CGFloat = 600
     /// Used for the expanded height until the content has been measured.
     static let defaultExpandedContentHeight: CGFloat = 120
     /// The expanded surface fits its content within these bounds.
-    static let expandedContentHeightRange: ClosedRange<CGFloat> = 56...280
-    static let shelfContentHeight: CGFloat = 120
+    static let expandedContentHeightRange: ClosedRange<CGFloat> = 56...300
+    static let shelfContentHeight: CGFloat = 156
 
     /// - Parameter expandedContentHeight: Measured height of the expanded content below the notch row.
     static func metrics(

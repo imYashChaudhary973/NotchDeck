@@ -77,7 +77,12 @@ final class ActivityEngine {
 
     /// Routes a user action to the provider that owns the activity.
     func perform(_ action: ActivityAction, on key: ActivityKey) {
-        providers[key.source]?.perform(actionID: action.id, on: key.id)
+        perform(actionID: action.id, on: key)
+    }
+
+    /// Routes a control interaction (transport button, toggle…) to the provider that owns the activity.
+    func perform(actionID: ActivityAction.ID, on key: ActivityKey) {
+        providers[key.source]?.perform(actionID: actionID, on: key.id)
     }
 
     /// Removes expired activities and re-resolves. Called automatically when expiry is scheduled.

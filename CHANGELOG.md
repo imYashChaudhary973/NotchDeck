@@ -15,10 +15,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   - Activity Engine: `NotchActivity`, `ActivityPriority` (10–60), `ActivityStore`, `ActivityResolver`, provider protocol, event-driven expiry, queueing, priority interruption and automatic restoration.
   - `NotchStateMachine` with Idle, Live Activity, Peek, Expanded and Shelf; hover, click, outside-click dismissal, attention auto-peek and basic drag detection.
   - SwiftUI notch surface with interruptible spring animations (Reduce Motion respected); the expanded surface sizes itself to its content.
+  - Command-center design: section tabs beside the notch, featured card plus widget column, Now Playing card, metric and toggle rows, segmented volume HUD, approval-style Peek, and shelf drop tiles — driven by new activity content styles (`media`, `level`, `metric`, `toggle`) and simulated in the debug panel ("Command Center Demo", "Volume", "Keep Awake", "System Stats").
   - Basic settings (hover, collapse, attention peek, display).
   - Debug-only activities panel and provider.
-  - 65 unit tests (store, resolver, engine, state machine, geometry, layout, settings).
-  - ADRs 0001–0003.
+  - 80 unit tests (store, resolver, engine, state machine, geometry, layout, settings).
+  - ADRs 0001–0004.
 - Six-phase engineering plan (`docs/development/engineering-plan.md`), linked from `ROADMAP.md`, `ARCHITECTURE.md` and `AGENTS.md`.
 - Phase 0 repository bootstrap:
   - Minimal SwiftUI macOS app target (`NotchDeck`) and a Swift Testing unit test target (`NotchDeckTests`).

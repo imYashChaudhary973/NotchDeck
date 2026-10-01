@@ -13,10 +13,31 @@ final class DebugActivityProvider: ActivityProvider {
     private var publisher: ActivityPublisher?
     private var tasks: [String: Task<Void, Never>] = [:]
     private var isMusicPlaying = true
+    private var trackIndex = 0
+    /// Playback position of the current track as of `positionDate`.
+    private var position: TimeInterval = 71
+    private var positionDate = Date.now
+    private var isKeepAwakeOn = true
+    private var volume = 0.81
+
+    private struct Track {
+        let title: String
+        let artist: String
+        let duration: TimeInterval
+    }
+
+    private static let tracks = [
+        Track(title: "Afterglow", artist: "Sunset Grid — Night Drive", duration: 214),
+        Track(title: "Midnight City", artist: "M83", duration: 243),
+        Track(title: "Instant Crush", artist: "Daft Punk", duration: 337),
+    ]
 
     private enum ActionID {
         static let dismiss = "dismiss"
         static let togglePlayback = "togglePlayback"
+        static let previousTrack = "previousTrack"
+        static let nextTrack = "nextTrack"
+        static let toggleKeepAwake = "toggleKeepAwake"
         static let complete = "complete"
     }
 
@@ -36,8 +57,26 @@ final class DebugActivityProvider: ActivityProvider {
     func perform(actionID: ActivityAction.ID, on activityID: NotchActivity.ID) {
         switch actionID {
         case ActionID.togglePlayback:
+            position = currentPosition
+            positionDate = .now
             isMusicPlaying.toggle()
-            simulateMusic(resetPlayback: false)
+            publishMusic()
+        case ActionID.previousTrack:
+            // Like most players: restart the track unless it just began.
+            if currentPosition < 3 {
+                trackIndex = (trackIndex + Self.tracks.count - 1) % Self.tracks.count
+            }
+            position = 0
+            positionDate = .now
+            publishMusic()
+        case ActionID.nextTrack:
+            trackIndex = (trackIndex + 1) % Self.tracks.count
+            position = 0
+            positionDate = .now
+            publishMusic()
+        case ActionID.toggleKeepAwake:
+            isKeepAwakeOn.toggle()
+            simulateKeepAwake(resetState: false)
         default:
             withdraw(activityID)
         }
@@ -46,42 +85,141 @@ final class DebugActivityProvider: ActivityProvider {
     // MARK: Simulations
 
     func simulateMusic(resetPlayback: Bool = true) {
-        if resetPlayback { isMusicPlaying = true }
+        if resetPlayback {
+            isMusicPlaying = true
+            trackIndex = 0
+            position = 71
+            positionDate = .now
+        }
+        publishMusic()
+    }
+
+    private var currentPosition: TimeInterval {
+        let elapsed = isMusicPlaying ? Date.now.timeIntervalSince(positionDate) : 0
+        return min(position + elapsed, Self.tracks[trackIndex].duration)
+    }
+
+    private func publishMusic() {
+        let track = Self.tracks[trackIndex]
         publish(NotchActivity(
             id: "music",
             source: source,
             kind: .music,
             priority: .passive,
-            title: "Midnight City",
-            subtitle: isMusicPlaying ? "M83" : "M83 · Paused",
+            title: track.title,
+            subtitle: track.artist,
             presentation: ActivityPresentation(
                 symbolName: "music.note",
                 accent: .pink,
-                compactAccessory: .symbol(isMusicPlaying ? "waveform" : "pause.fill")
-            ),
-            actions: [
-                ActivityAction(
-                    id: ActionID.togglePlayback,
-                    title: isMusicPlaying ? "Pause" : "Play",
-                    systemImage: isMusicPlaying ? "pause.fill" : "play.fill"
-                ),
-                Self.dismissAction,
-            ]
+                compactAccessory: .symbol(isMusicPlaying ? "waveform" : "pause.fill"),
+                content: .media(MediaContent(
+                    isPlaying: isMusicPlaying,
+                    position: position,
+                    positionDate: positionDate,
+                    duration: track.duration,
+                    artworkSymbol: "music.note",
+                    previousActionID: ActionID.previousTrack,
+                    playPauseActionID: ActionID.togglePlayback,
+                    nextActionID: ActionID.nextTrack
+                ))
+            )
         ))
+    }
+
+    /// A Keep Awake toggle row (the real feature arrives in Phase 2).
+    func simulateKeepAwake(resetState: Bool = true) {
+        if resetState { isKeepAwakeOn = true }
+        publish(NotchActivity(
+            id: "keepAwake",
+            source: source,
+            kind: .system,
+            priority: .ambient,
+            title: "Keep Awake",
+            presentation: ActivityPresentation(
+                symbolName: "cup.and.saucer.fill",
+                accent: .neutral,
+                compactAccessory: .symbol("cup.and.saucer.fill"),
+                content: .toggle(ToggleContent(
+                    isOn: isKeepAwakeOn,
+                    actionID: ActionID.toggleKeepAwake,
+                    stateText: isKeepAwakeOn ? "Until stopped" : "Off"
+                ))
+            )
+        ))
+    }
+
+    /// Fake CPU and memory meters that drift every two seconds (real metrics arrive in Phase 2).
+    func simulateSystemStats() {
+        let id = "systemStats"
+        run(id) { provider in
+            var cpu = 0.18
+            var memory = 0.46
+            while true {
+                provider.publish(provider.metric(id: "cpu", title: "CPU", symbol: "cpu", value: cpu))
+                provider.publish(provider.metric(id: "memory", title: "Memory", symbol: "memorychip", value: memory))
+                try await Task.sleep(for: .seconds(2))
+                cpu = min(max(cpu + Double.random(in: -0.08...0.08), 0.03), 0.95)
+                memory = min(max(memory + Double.random(in: -0.02...0.02), 0.3), 0.8)
+            }
+        }
+    }
+
+    private func metric(id: String, title: String, symbol: String, value: Double) -> NotchActivity {
+        NotchActivity(
+            id: id,
+            source: source,
+            kind: .system,
+            priority: .ambient,
+            title: title,
+            presentation: ActivityPresentation(
+                symbolName: symbol,
+                accent: .neutral,
+                compactAccessory: .text(value.formatted(.percent.precision(.fractionLength(0)))),
+                content: .metric(MetricContent(value: value, valueText: value.formatted(.percent.precision(.fractionLength(0)))))
+            )
+        )
+    }
+
+    /// A volume HUD: reveals the notch on every change and disappears shortly after.
+    func simulateVolume(step: Double = 0.06) {
+        volume = volume + step > 1 ? 0.2 : volume + step
+        publish(NotchActivity(
+            id: "volume",
+            source: source,
+            kind: .system,
+            priority: .active,
+            title: "Volume",
+            expiresAt: .now.addingTimeInterval(2.5),
+            presentation: ActivityPresentation(
+                symbolName: "speaker.wave.3.fill",
+                accent: .orange,
+                content: .level(LevelContent(value: volume, valueText: volume.formatted(.percent.precision(.fractionLength(0))))),
+                revealsOnUpdate: true
+            )
+        ))
+    }
+
+    /// Publishes the activities from the command-center reference design in one go.
+    func simulateCommandCenterDemo() {
+        // Music first: at equal priority the activity already on screen keeps the featured card.
+        simulateMusic()
+        simulateMeeting(startsIn: 25 * 60, title: "Standup", priority: .passive)
+        simulateKeepAwake()
+        simulateSystemStats()
     }
 
     /// A meeting starting in `startsIn` seconds. Escalates to Attention Required when it starts,
     /// then expires shortly after so whatever it interrupted is restored.
-    func simulateMeeting(startsIn: TimeInterval = 60) {
+    func simulateMeeting(startsIn: TimeInterval = 60, title: String = "Design Review", priority: ActivityPriority = .timeSensitive) {
         let id = "meeting"
         let start = Date.now.addingTimeInterval(startsIn)
         let base = NotchActivity(
             id: id,
             source: source,
             kind: .meeting,
-            priority: .timeSensitive,
-            title: "Design Review",
-            subtitle: "Starts at \(start.formatted(date: .omitted, time: .shortened))",
+            priority: priority,
+            title: title,
+            subtitle: startsIn >= 60 ? "in \(Int(startsIn / 60)) min" : "Starts at \(start.formatted(date: .omitted, time: .shortened))",
             expiresAt: start.addingTimeInterval(20),
             presentation: ActivityPresentation(symbolName: "calendar", accent: .blue, compactAccessory: .countdown(to: start)),
             actions: [ActivityAction(id: ActionID.complete, title: "Join", systemImage: "video.fill"), Self.dismissAction]
@@ -176,12 +314,13 @@ final class DebugActivityProvider: ActivityProvider {
             source: source,
             kind: .agent,
             priority: .attentionRequired,
-            title: "Claude needs you",
-            subtitle: "Permission required · Rove",
+            title: "notchview",
+            subtitle: "Claude needs your permission to use Bash",
             presentation: ActivityPresentation(
-                symbolName: "exclamationmark.bubble.fill",
+                symbolName: "asterisk",
                 accent: .orange,
-                compactAccessory: .symbol("hand.raised.fill")
+                compactAccessory: .symbol("hand.raised.fill"),
+                statusText: "Needs approval"
             ),
             actions: [ActivityAction(id: ActionID.complete, title: "Open", systemImage: "terminal"), Self.dismissAction]
         ))
