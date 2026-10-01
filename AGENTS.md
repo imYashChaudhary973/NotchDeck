@@ -168,7 +168,7 @@ Agents must not discard unknown user modifications. If the working tree contains
 
 ## Scope Rule
 
-When given a numbered development phase (see [`ROADMAP.md`](ROADMAP.md)):
+When given a numbered development phase (see [`ROADMAP.md`](ROADMAP.md) and the phase's prompt in [`docs/development/engineering-plan.md`](docs/development/engineering-plan.md)):
 
 > Implement only that phase plus strictly necessary supporting work.
 
@@ -183,6 +183,7 @@ Do not opportunistically implement future phases.
 | [`PRODUCT.md`](PRODUCT.md) | What NotchDeck is and the principles behind it |
 | [`ARCHITECTURE.md`](ARCHITECTURE.md) | Planned architecture, domains, priorities, ADR process |
 | [`ROADMAP.md`](ROADMAP.md) | Phases, status and completion criteria |
+| [`docs/development/engineering-plan.md`](docs/development/engineering-plan.md) | Full six-phase plan; each phase's *Coding Agent Prompt* is its task brief |
 | [`DEVELOPMENT.md`](DEVELOPMENT.md) | Building, running, testing, signing |
 | [`CONTRIBUTING.md`](CONTRIBUTING.md) | Branching and review expectations |
 | [`PRIVACY.md`](PRIVACY.md) / [`SECURITY.md`](SECURITY.md) | Privacy and security rules |

@@ -2,6 +2,10 @@
 
 Development proceeds in numbered phases. When working on a phase, implement only that phase plus strictly necessary supporting work (see the Scope Rule in [`AGENTS.md`](AGENTS.md)).
 
+The detailed brief for every phase — including its *Coding Agent Prompt* — is in [`docs/development/engineering-plan.md`](docs/development/engineering-plan.md). This file tracks status and completion criteria.
+
+**MVP cut line:** a releasable early beta can exist after Phase 4. Phase 5 adds the developer differentiator; Phase 6 productizes.
+
 | Phase | Title | Status |
 | --- | --- | --- |
 | 0 | Repository bootstrap | **Complete** |
@@ -46,10 +50,12 @@ Development proceeds in numbered phases. When working on a phase, implement only
 - Establish the notch surface and the core pipeline every later feature depends on.
 
 **Major Deliverables**
-- Notch geometry detection and a notch-attached presentation window (with defined behavior on non-notched and multiple displays).
-- `NotchActivity` model, `ActivityStore`, activity resolver and priority levels.
-- `NotchStateMachine` covering Idle, Live Activity, Peek, Expanded and Shelf states and transitions.
-- Minimal presentation for each state.
+- Background / menu-bar utility lifecycle; Launch at Login infrastructure; basic settings infrastructure.
+- Notch geometry detection and a transparent, borderless notch panel (with defined behavior on non-notched displays, multiple displays, Spaces and full-screen apps).
+- `NotchActivity` model, `ActivityStore`, activity resolver, priority levels, expiry, queueing, interruption and restoration.
+- `NotchStateMachine` covering Idle, Live Activity, Peek, Expanded and Shelf; hover, click, outside-click dismissal and basic drag detection.
+- Minimal presentation for each state with interruptible spring animations.
+- Developer-only debug panel generating fake Music, Meeting, Timer, File Transfer, Agent Attention and Clipboard activities.
 - Unit tests for store, resolver and state machine.
 - ADRs for notch window strategy and the activity engine.
 - Finalized toolchain requirements in `DEVELOPMENT.md` (deployment target, Xcode version, signing, sandbox).
@@ -58,7 +64,8 @@ Development proceeds in numbered phases. When working on a phase, implement only
 - Phase 0.
 
 **Completion Criteria**
-- A test/debug activity can be published and is correctly presented, prioritized and dismissed.
+- Every state can be simulated from the debug panel: Idle → Live Activity → Peek → Expanded → Collapse.
+- Activities interrupt each other by priority, and the previous activity returns when a higher-priority one disappears.
 - State machine transitions are fully unit tested.
 - Idle CPU usage is negligible.
 
@@ -74,7 +81,7 @@ Development proceeds in numbered phases. When working on a phase, implement only
 **Major Deliverables**
 - Timer feature.
 - Keep Awake (power assertions).
-- CPU / memory metrics.
+- CPU / memory / memory pressure, battery and charging state.
 - Audio output / volume controls.
 - Quick Actions.
 
@@ -82,7 +89,9 @@ Development proceeds in numbered phases. When working on a phase, implement only
 - Phase 1 Activity Engine and State Machine.
 
 **Completion Criteria**
+- Without connecting any account, NotchDeck is a useful notch utility.
 - Each feature publishes activities exclusively through the Activity Engine.
+- Each feature can be individually disabled in settings.
 - Metrics sampling is efficient and pauses when not visible.
 - Tests cover feature state logic.
 
@@ -137,7 +146,8 @@ Development proceeds in numbered phases. When working on a phase, implement only
 - Let developer tools report activity to NotchDeck securely.
 
 **Major Deliverables**
-- A documented, versioned generic developer activity protocol.
+- A documented, versioned generic developer activity protocol (`DeveloperActivityProvider`).
+- `notchctl` command-line bridge with JSON input.
 - Secure, local, authenticated IPC (no unauthenticated network listener).
 - Claude Code and Codex integrations built on that protocol.
 - ADR for agent IPC.

@@ -21,6 +21,7 @@ A dedicated reporting channel has not been set up yet.
 - Developer-agent integrations (Phase 5) **must use secure local IPC**.
 - NotchDeck must **never expose an unauthenticated network listener**, on any interface — including `localhost`.
 - Prefer transports that are inherently local and permissioned (e.g. XPC, Unix domain sockets with restrictive file permissions) and authenticate peers.
+- A local HTTP transport (mentioned as an option in the engineering plan) is only acceptable if it is loopback-only **and** authenticated, and requires an ADR.
 - Treat every message from another process as untrusted input.
 
 ### Input validation

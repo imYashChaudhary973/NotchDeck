@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
+- Six-phase engineering plan (`docs/development/engineering-plan.md`), linked from `ROADMAP.md`, `ARCHITECTURE.md` and `AGENTS.md`.
 - Phase 0 repository bootstrap:
   - Minimal SwiftUI macOS app target (`NotchDeck`) with a placeholder window, and a Swift Testing unit test target (`NotchDeckTests`) with a smoke test.
   - Shared `NotchDeck` Xcode scheme.

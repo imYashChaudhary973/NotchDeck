@@ -1,5 +1,7 @@
 # Architecture
 
+> The phase-by-phase brief behind this architecture is [`docs/development/engineering-plan.md`](docs/development/engineering-plan.md).
+
 > **Status: planned, not implemented.** As of Phase 0, the codebase contains only a minimal SwiftUI app shell that launches a placeholder window. Everything below describes the *intended* architecture that Phase 1 will begin to implement. Update this document as reality diverges from the plan.
 
 ## Core Principle
@@ -41,18 +43,18 @@ Design intentions:
 
 ## Activity Priority
 
-Activities carry a priority level used by the resolver. Planned levels, lowest to highest:
+Activities carry a priority level used by the resolver. Planned levels, lowest to highest, with the base values from the [engineering plan](docs/development/engineering-plan.md):
 
 ```text
-Ambient              Background context; shown only when nothing else is relevant.
-Passive              Ongoing but low-urgency (e.g. music playing).
-Active               Something the user is currently engaged with (e.g. running timer).
-Time Sensitive       Relevant now and soon stale (e.g. meeting starting in 2 minutes).
-Attention Required   The user needs to act (e.g. an agent is waiting for input).
-Critical             Rare; must be seen immediately (e.g. timer finished, failure needing action).
+10  Ambient              Background context; shown only when nothing else is relevant (e.g. CPU stats).
+20  Passive              Ongoing but low-urgency (e.g. music playing, clipboard).
+30  Active               Something the user is currently engaged with (e.g. running timer, file transfer).
+40  Time Sensitive       Relevant now and soon stale (e.g. meeting in 3 minutes, timer < 10 s).
+50  Attention Required   The user needs to act (e.g. an agent is waiting for input).
+60  Critical             Rare; must be seen immediately.
 ```
 
-Concrete numerical values, tie-breaking rules, decay over time, and how user preferences modify priority will be finalized during Phase 1 implementation and recorded in an ADR.
+Intermediate values are allowed (e.g. a timer at 1 minute remaining = 35). Tie-breaking rules, decay over time, and how user preferences modify priority will be finalized during Phase 1 implementation and recorded in an ADR.
 
 ## Planned Domains
 
@@ -126,7 +128,7 @@ The Xcode project uses **file-system-synchronized groups**: any file added under
 - Activation policy: Dock icon vs. accessory (menu-bar-style) app.
 - App Sandbox: whether NotchDeck can ship sandboxed given planned features.
 - Swift concurrency defaults (e.g. main-actor default isolation).
-- Agent IPC transport for Phase 5 (must be local and authenticated — see `SECURITY.md`).
+- Agent IPC transport for Phase 5 (`notchctl` → app; must be local and authenticated — see `SECURITY.md`).
 
 ## Architecture Decision Records
 
