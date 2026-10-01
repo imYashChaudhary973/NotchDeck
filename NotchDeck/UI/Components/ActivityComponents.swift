@@ -15,6 +15,14 @@ extension ActivityAccent {
     }
 }
 
+extension View {
+    /// Layered SF Symbols (e.g. `waveform`) lose their foreground color and render white when drawn
+    /// inside a clip or mask, as the notch surface is. Flattening them first keeps the tint.
+    func tintedSymbolInsideClip() -> some View {
+        compositingGroup()
+    }
+}
+
 /// An activity's SF Symbol in its accent color.
 struct ActivityGlyph: View {
     let presentation: ActivityPresentation
@@ -23,8 +31,9 @@ struct ActivityGlyph: View {
     var body: some View {
         Image(systemName: presentation.symbolName)
             .font(.system(size: size, weight: .semibold))
+            // Monochrome (the default): hierarchical rendering dims filled symbols to near-black.
             .foregroundStyle(presentation.accent.color)
-            .symbolRenderingMode(.hierarchical)
+            .tintedSymbolInsideClip()
             .accessibilityHidden(true)
     }
 }
@@ -45,6 +54,7 @@ struct CompactAccessoryView: View {
             Image(systemName: name)
                 .font(.system(size: fontSize, weight: .semibold))
                 .foregroundStyle(activity.presentation.accent.color)
+                .tintedSymbolInsideClip()
         case .countdown(let target):
             CountdownText(target: target)
                 .font(.system(size: fontSize, weight: .semibold).monospacedDigit())
