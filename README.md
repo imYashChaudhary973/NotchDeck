@@ -2,7 +2,7 @@
 
 A native macOS command center built around the MacBook notch.
 
-> **🚧 Currently being built.** NotchDeck is in early development. The repository is bootstrapped (Phase 0) but none of the features below exist yet.
+> **🚧 Currently being built.** The notch foundation (Phase 1) is in review: the notch surface, Activity Engine and state machine work, driven by simulated activities. None of the planned features below exist yet.
 
 ## Overview
 
@@ -32,12 +32,12 @@ Details in [`ARCHITECTURE.md`](ARCHITECTURE.md).
 | Phase | Status |
 | --- | --- |
 | 0 — Repository bootstrap | Complete |
-| 1 — Notch foundation + Activity Engine + State Machine | Not Started |
+| 1 — Notch foundation + Activity Engine + State Machine | In Review |
 | 2–6 | Not Started |
 
 ## Requirements
 
-- A Mac running macOS (minimum supported version **TBD during Phase 1**)
+- macOS 14 Sonoma or later (a notched MacBook is ideal; other displays get a virtual notch)
 - Xcode 16 or later to open the project (verified with Xcode 27.0)
 - No third-party dependencies
 
@@ -50,6 +50,15 @@ Scripts/bootstrap.sh       # environment diagnostics
 open NotchDeck.xcodeproj   # or build/test from the command line:
 xcodebuild -project NotchDeck.xcodeproj -scheme NotchDeck test
 ```
+
+NotchDeck runs as a menu-bar app (no Dock icon). In Debug builds, the menu bar item has **Debug Activities…**, which simulates music, meetings, timers, downloads, agent attention and clipboard activities. To open it at launch:
+
+```bash
+xcodebuild -project NotchDeck.xcodeproj -scheme NotchDeck -derivedDataPath build/DerivedData build
+open build/DerivedData/Build/Products/Debug/NotchDeck.app --args -NotchDeckShowDebugPanel YES
+```
+
+Hover the notch to peek, click it to expand, click elsewhere to collapse.
 
 Full instructions: [`DEVELOPMENT.md`](DEVELOPMENT.md). Coding agents must read [`AGENTS.md`](AGENTS.md) first.
 

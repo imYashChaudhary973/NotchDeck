@@ -9,7 +9,7 @@ The detailed brief for every phase — including its *Coding Agent Prompt* — i
 | Phase | Title | Status |
 | --- | --- | --- |
 | 0 | Repository bootstrap | **Complete** |
-| 1 | Notch foundation + Activity Engine + State Machine | Not Started |
+| 1 | Notch foundation + Activity Engine + State Machine | **In Review** |
 | 2 | Timers + Keep Awake + System Metrics + Audio + Quick Actions | Not Started |
 | 3 | Music + Calendar + Context Resolution | Not Started |
 | 4 | File Shelf + Clipboard | Not Started |
@@ -44,7 +44,9 @@ The detailed brief for every phase — including its *Coding Agent Prompt* — i
 
 ## Phase 1 — Notch Foundation + Activity Engine + State Machine
 
-**Status:** Not Started
+**Status:** In Review — implemented on `feature/phase-1-foundation`; complete once merged to `main`.
+
+Verification so far: 63 unit tests pass; panel geometry checked on a notched built-in display and an external non-notched display (virtual notch); Idle → Live → Peek → Expanded → Collapse, Shelf, attention auto-peek, interruption and restoration exercised via the debug panel; idle CPU 0%, 0 wakeups. Not yet manually verified: full-screen apps / Spaces switching, real file drag over the notch, display hot-plug, Launch at Login from `/Applications`.
 
 **Goals**
 - Establish the notch surface and the core pipeline every later feature depends on.
