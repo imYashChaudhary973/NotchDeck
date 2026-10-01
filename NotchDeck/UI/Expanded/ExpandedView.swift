@@ -54,9 +54,19 @@ struct ExpandedView: View {
                 }
             }
             .padding(.horizontal, 22)
-            .padding(.top, 6)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .padding(.top, 10)
+            .padding(.bottom, 18)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            // Measure the content's natural height (even while the surface is still animating
+            // open) so the expanded notch fits it instead of using a fixed height.
+            .fixedSize(horizontal: false, vertical: true)
+            .onGeometryChange(for: CGFloat.self) { proxy in
+                proxy.size.height
+            } action: { height in
+                model.updateExpandedContentHeight(height)
+            }
         }
+        .frame(maxHeight: .infinity, alignment: .top)
     }
 }
 

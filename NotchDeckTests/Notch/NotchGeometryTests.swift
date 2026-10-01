@@ -113,6 +113,29 @@ struct NotchGeometryTests {
         }
     }
 
+    @Test func expandedHeightFitsMeasuredContentWithinBounds() {
+        let notch = CGSize(width: 220, height: 38)
+        func height(_ measured: CGFloat?) -> CGFloat {
+            NotchLayout.metrics(for: .expanded, notchSize: notch, expandedContentHeight: measured).outerSize.height
+        }
+
+        #expect(height(nil) == 38 + NotchLayout.defaultExpandedContentHeight)
+        #expect(height(100) == 138)
+        #expect(height(10) == 38 + NotchLayout.expandedContentHeightRange.lowerBound)
+        #expect(height(1_000) == 38 + NotchLayout.expandedContentHeightRange.upperBound)
+        #expect(height(100.2) == 139)
+    }
+
+    @Test func measuredContentHeightOnlyAffectsExpanded() {
+        let notch = CGSize(width: 220, height: 38)
+        for state in [NotchPresentationState.idle, .liveActivity, .peek, .shelf] {
+            #expect(
+                NotchLayout.metrics(for: state, notchSize: notch, expandedContentHeight: 250)
+                    == NotchLayout.metrics(for: state, notchSize: notch)
+            )
+        }
+    }
+
     @Test func liveActivityKeepsNotchHeight() {
         let notch = CGSize(width: 220, height: 38)
         #expect(NotchLayout.metrics(for: .liveActivity, notchSize: notch).outerSize.height == 38)

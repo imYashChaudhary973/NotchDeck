@@ -21,10 +21,18 @@ enum NotchLayout {
     static let peekWidth: CGFloat = 360
     static let peekContentHeight: CGFloat = 56
     static let expandedWidth: CGFloat = 480
-    static let expandedContentHeight: CGFloat = 196
+    /// Used for the expanded height until the content has been measured.
+    static let defaultExpandedContentHeight: CGFloat = 120
+    /// The expanded surface fits its content within these bounds.
+    static let expandedContentHeightRange: ClosedRange<CGFloat> = 56...280
     static let shelfContentHeight: CGFloat = 120
 
-    static func metrics(for state: NotchPresentationState, notchSize: CGSize) -> NotchMetrics {
+    /// - Parameter expandedContentHeight: Measured height of the expanded content below the notch row.
+    static func metrics(
+        for state: NotchPresentationState,
+        notchSize: CGSize,
+        expandedContentHeight: CGFloat? = nil
+    ) -> NotchMetrics {
         let notchWidth = notchSize.width
         let notchHeight = notchSize.height
 
@@ -55,7 +63,7 @@ enum NotchLayout {
             return NotchMetrics(
                 bodySize: CGSize(
                     width: max(expandedWidth, notchWidth + 200),
-                    height: notchHeight + expandedContentHeight
+                    height: notchHeight + clampedExpandedContentHeight(expandedContentHeight)
                 ),
                 topCornerRadius: 14,
                 bottomCornerRadius: 28
@@ -70,5 +78,10 @@ enum NotchLayout {
                 bottomCornerRadius: 28
             )
         }
+    }
+
+    static func clampedExpandedContentHeight(_ measured: CGFloat?) -> CGFloat {
+        let range = expandedContentHeightRange
+        return min(max((measured ?? defaultExpandedContentHeight).rounded(.up), range.lowerBound), range.upperBound)
     }
 }

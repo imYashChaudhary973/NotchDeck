@@ -46,6 +46,7 @@ final class NotchController {
         self.machine = NotchStateMachine(configuration: settings.stateMachineConfiguration)
         self.model = NotchViewModel(engine: engine)
         model.onClick = { [weak self] in self?.send(.clicked) }
+        model.onLayoutChange = { [weak self] in self?.updatePanelFrame(animated: true) }
     }
 
     /// The current presentation state (read-only outside the controller).
@@ -148,7 +149,13 @@ final class NotchController {
     }
 
     private var targetSize: CGSize? {
-        geometry.map { NotchLayout.metrics(for: machine.state, notchSize: $0.notchSize).outerSize }
+        geometry.map {
+            NotchLayout.metrics(
+                for: machine.state,
+                notchSize: $0.notchSize,
+                expandedContentHeight: model.expandedContentHeight
+            ).outerSize
+        }
     }
 
     /// Grows the panel immediately so the surface can animate outward inside it, and shrinks it

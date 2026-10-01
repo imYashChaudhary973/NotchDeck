@@ -67,7 +67,7 @@ The **resting state** is `liveActivity` when there is a primary activity, otherw
 | `idle` | Exactly the physical notch (or a 180 pt virtual notch on displays without one). |
 | `liveActivity` | Notch plus a 40 pt "ear" on each side: glyph on the leading ear, accessory (countdown, progress ring, symbol) on the trailing ear. |
 | `peek` | 360 pt wide: compact row plus title and subtitle. |
-| `expanded` | 480 pt wide: primary activity with progress and actions, the next two queued activities, and a Settings button. |
+| `expanded` | 480 pt wide; height fits the measured content (56–280 pt below the notch row): primary activity with progress and actions, the next two queued activities, and a Settings button. |
 | `shelf` | Drop target. Phase 1 detects drags but refuses drops (the File Shelf is Phase 4). |
 
 ## Adding a Feature: Registering an Activity Provider
