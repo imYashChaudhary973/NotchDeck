@@ -1,0 +1,42 @@
+# Architecture Decision Records
+
+This directory holds Architecture Decision Records (ADRs): short documents capturing a significant decision, its context and its consequences.
+
+No ADRs have been written yet. They are created when a decision is actually made — never in advance.
+
+## When to write one
+
+- The decision is hard or expensive to reverse.
+- It affects more than one domain (e.g. Core and UI).
+- There were real alternatives and the reasoning matters to future contributors.
+
+## Naming
+
+`NNNN-short-kebab-title.md`, numbered sequentially, e.g. `0001-notch-window-strategy.md`.
+
+## Template
+
+```markdown
+# NNNN. Title
+
+- Status: Proposed | Accepted | Superseded by NNNN | Deprecated
+- Date: YYYY-MM-DD
+
+## Context
+
+What problem are we solving? What constraints apply (performance, privacy, public-API-only, etc.)?
+
+## Decision
+
+What we decided.
+
+## Alternatives Considered
+
+What else we evaluated and why it was rejected.
+
+## Consequences
+
+What becomes easier or harder. Follow-up work.
+```
+
+Accepted ADRs are not edited to change their decision; write a new ADR that supersedes them.

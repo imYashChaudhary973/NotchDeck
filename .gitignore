@@ -1,0 +1,47 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+
+# Xcode — per-user state (shared schemes in xcshareddata/ ARE committed)
+xcuserdata/
+*.xcuserstate
+*.xcscmblueprint
+*.xccheckout
+*.moved-aside
+*.hmap
+*.ipa
+*.dSYM.zip
+*.dSYM
+*.xcresult
+
+# Build products
+DerivedData/
+build/
+*.xcarchive
+
+# Swift Package Manager
+.build/
+.swiftpm/
+Packages/
+
+# Local, machine-specific configuration (never commit)
+*.local.xcconfig
+.env
+.env.*
+
+# Signing material (never commit)
+*.p12
+*.cer
+*.mobileprovision
+*.provisionprofile
+
+# Editors / tools
+.vscode/
+.idea/
+*.swp
+*~
+.claude/settings.local.json
