@@ -33,18 +33,20 @@ The application must remain **minimal** despite supporting many capabilities.
 No feature may independently create, resize, show, hide or otherwise manipulate the primary notch interface. A feature's only job is to describe what is happening (an activity) and hand it to the engine. The engine decides what is presented, when, and how.
 
 ```text
-Provider
+ActivityProvider        (Features/…; publishes via its ActivityPublisher)
     ↓
 NotchActivity
     ↓
-ActivityStore
+ActivityStore           (inside ActivityEngine)
     ↓
-PriorityResolver
+ActivityResolver        (inside ActivityEngine)
     ↓
-NotchStateMachine
+NotchStateMachine       (driven by NotchController)
     ↓
-Presentation
+Presentation            (NotchPanel + SwiftUI views)
 ```
+
+In code: a feature implements `ActivityProvider`, is registered in `AppEnvironment.start()`, and only ever calls `publish` / `withdraw` on its `ActivityPublisher`. **`NotchController` is the only type allowed to touch the notch window.** See "Adding a Feature" in [`ARCHITECTURE.md`](ARCHITECTURE.md).
 
 If a change would let a feature bypass this pipeline, stop and redesign it — or document why in an ADR (`docs/decisions/`) before proceeding.
 
@@ -70,7 +72,9 @@ Agents must:
 14. Prefer event-driven architecture over aggressive polling.
 15. Keep idle resource usage extremely low.
 
-Build and test commands are in [`DEVELOPMENT.md`](DEVELOPMENT.md).
+Build and test commands are in [`DEVELOPMENT.md`](DEVELOPMENT.md). Use the Debug Activities panel (`-NotchDeckShowDebugPanel YES`) to exercise notch states without real integrations.
+
+State-machine and resolver changes must keep their unit tests passing and add tests for new rules — they are the heart of the app.
 
 ---
 

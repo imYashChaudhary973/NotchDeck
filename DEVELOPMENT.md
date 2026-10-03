@@ -6,14 +6,12 @@ This document describes how to build, run and test NotchDeck locally. Items mark
 
 ### macOS version
 
-- **Supported deployment target (minimum macOS for users):** TBD during Phase 1.
-  The project is currently configured with `MACOSX_DEPLOYMENT_TARGET = 14.0` as a provisional placeholder so it builds; this is not a final decision.
+- **Supported deployment target (minimum macOS for users):** macOS 14.0 Sonoma ([ADR 0003](docs/decisions/0003-app-runtime-configuration.md)).
 - **Development machine:** any macOS version that runs the required Xcode.
 
 ### Xcode version
 
-- **Required Xcode:** TBD during Phase 1.
-- Phase 0 was created and verified with **Xcode 27.0** (Swift 6.4, macOS 27.0 SDK).
+- **Required Xcode:** Xcode 16 or later (Swift 6 language mode, `objectVersion 77`). Development and verification use **Xcode 27.0** (Swift 6.4, macOS 27.0 SDK).
 - The project uses `objectVersion = 77` (file-system-synchronized groups), which requires **Xcode 16 or later** to open.
 
 ### Dependencies
@@ -58,6 +56,22 @@ open build/DerivedData/Build/Products/Debug/NotchDeck.app
 
 (`build/` is git-ignored.)
 
+NotchDeck is an accessory app: there is no Dock icon or main window. Look for the notch surface and the menu bar item (Settings…, Debug Activities…, Quit).
+
+### Debug Activities panel
+
+Debug builds include a developer-only panel that simulates activities (Music, Meeting, Timer, File Transfer, Claude Waiting, Clipboard, Critical) and drives notch states (Attention Peek, Expand, Shelf, Collapse). It lists live activities with their priorities.
+
+- Open from the menu bar item: **Debug Activities…**, or
+- launch with `--args -NotchDeckShowDebugPanel YES`.
+
+Useful launch arguments (they override stored settings for that run):
+
+| Argument | Effect |
+| --- | --- |
+| `-NotchDeckShowDebugPanel YES` | Open the debug panel at launch (Debug builds) |
+| `-notch.displayPreference primary` | Put the notch on the primary display (test the virtual notch on external monitors) |
+
 ## Testing
 
 Tests use **Swift Testing** (`import Testing`).
@@ -87,17 +101,17 @@ In Xcode: **Product ▸ Test** (⌘U).
 
 ## Entitlements
 
-- None at present. Hardened Runtime is enabled.
-- App Sandbox: **TBD during Phase 1** (some planned features may be constrained by sandboxing; the decision will be recorded in an ADR).
+- None at present. Hardened Runtime is enabled. `LSUIElement = YES` (accessory app).
+- App Sandbox: **off for now**; to be revisited before first distribution ([ADR 0003](docs/decisions/0003-app-runtime-configuration.md)).
 
 ## Permissions
 
-None requested yet. Planned features will need some of the following, each requested **contextually** when the user enables the feature:
+The notch itself needs **no** permissions (no Accessibility, Input Monitoring or Screen Recording). Planned features will need some of the following, each requested **contextually** when the user enables the feature:
 
 | Feature | Likely permission / mechanism |
 | --- | --- |
 | Calendar | EventKit calendar access |
-| Login item | ServiceManagement (`SMAppService`) |
+| Login item | ServiceManagement (`SMAppService`) — implemented; may need approval in System Settings ▸ General ▸ Login Items, and is unreliable for builds run from DerivedData |
 | Clipboard | `NSPasteboard` (no TCC prompt, but privacy-sensitive) |
 | Developer agents | Local IPC (design TBD in Phase 5) |
 
@@ -109,3 +123,5 @@ Usage-description strings (`NS…UsageDescription`) are added alongside the feat
 - **Signing errors when building:** make sure no `DEVELOPMENT_TEAM` mismatch was introduced; the shared project builds with "Sign to Run Locally".
 - **Stale build behavior:** delete DerivedData for the project (`~/Library/Developer/Xcode/DerivedData/NotchDeck-*`, or `build/` if you used `-derivedDataPath build/DerivedData`).
 - **`warning: Metadata extraction skipped, no AppIntents.framework dependency found`:** harmless toolchain notice; not caused by project code.
+- **Notch not visible / on the wrong display:** check Settings ▸ Notch ▸ Display. With "Automatic", a connected built-in notched display wins over the primary display.
+- **Two NotchDecks running:** quit the old one (menu bar item ▸ Quit) before launching a new build; both would draw over the notch.
