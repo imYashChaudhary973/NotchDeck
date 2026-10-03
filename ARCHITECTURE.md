@@ -178,7 +178,8 @@ NotchDeck/
 │   ├── Activities/          NotchActivity, ActivityPriority, ActivityStore, ActivityResolver,
 │   │                        ActivityEngine, ActivityProvider (+ ActivityPublisher)
 │   └── Notch/               NotchGeometry (+ DisplayPreference, NotchScreenSelector), NotchLayout,
-│                            NotchStateMachine, NotchPanel, NotchHostingView, NotchViewModel, NotchController
+│                            FullScreenCoverage (+ NotchVisibility), NotchStateMachine, NotchPanel,
+│                            NotchHostingView, NotchViewModel, NotchController
 ├── Features/
 │   └── DebugActivities/     DebugActivityProvider, DebugPanelView (#if DEBUG)
 ├── Services/                LaunchAtLoginService
@@ -189,7 +190,7 @@ NotchDeck/
     └── Components/          NotchShape, activity glyph/accessory/progress components
 NotchDeckTests/
 ├── Activities/              store, resolver, engine tests
-├── Notch/                   state machine, geometry, layout tests
+├── Notch/                   state machine, geometry, layout, full-screen visibility, drag description tests
 └── Settings/                settings persistence tests
 ```
 

@@ -18,6 +18,8 @@ final class NotchController {
     static let pointerExitDelay: Duration = .milliseconds(120)
     /// Time for the surface to finish shrinking before the panel is resized down to it.
     static let shrinkDelay: Duration = .milliseconds(550)
+    /// Full-screen transitions animate after the Space changes; check coverage again once they settle.
+    static let fullScreenRecheckDelay: Duration = .seconds(1)
 
     let model: NotchViewModel
     var onOpenSettings: (() -> Void)? {
@@ -35,7 +37,12 @@ final class NotchController {
 
     private var outsideClickMonitors: [Any] = []
     private var screenObserver: NSObjectProtocol?
+    private var workspaceObservers: [NSObjectProtocol] = []
+    /// Whether a full-screen window covers the notch's display. Only tracked for virtual notches.
+    private var isFullScreenCovered = false
     private var shrinkTask: Task<Void, Never>?
+    private var hideTask: Task<Void, Never>?
+    private var fullScreenRecheckTask: Task<Void, Never>?
     private var attentionPeekTask: Task<Void, Never>?
     private var pointerExitTask: Task<Void, Never>?
     private var isStarted = false
@@ -89,10 +96,20 @@ final class NotchController {
             MainActor.assumeIsolated { self?.updateScreen() }
         }
 
+        // Entering or leaving a full-screen app switches Spaces; borderless full-screen
+        // windows (e.g. games) come and go with app activation.
+        let workspaceCenter = NSWorkspace.shared.notificationCenter
+        workspaceObservers = [
+            NSWorkspace.activeSpaceDidChangeNotification,
+            NSWorkspace.didActivateApplicationNotification,
+        ].map { name in
+            workspaceCenter.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated { self?.workspaceChanged() }
+            }
+        }
+
         observeSettings()
         updateScreen()
-        panel.orderFrontRegardless()
-        hostingView.reconcilePointerLocation()
     }
 
     func stop() {
@@ -103,8 +120,10 @@ final class NotchController {
             NotificationCenter.default.removeObserver(screenObserver)
         }
         screenObserver = nil
+        workspaceObservers.forEach(NSWorkspace.shared.notificationCenter.removeObserver)
+        workspaceObservers.removeAll()
         removeOutsideClickMonitors()
-        [shrinkTask, attentionPeekTask, pointerExitTask].forEach { $0?.cancel() }
+        [shrinkTask, hideTask, fullScreenRecheckTask, attentionPeekTask, pointerExitTask].forEach { $0?.cancel() }
         panel?.orderOut(nil)
         panel = nil
         hostingView = nil
@@ -167,6 +186,7 @@ final class NotchController {
     private func applyState() {
         model.update(state: machine.state, geometry: geometry)
         updatePanelFrame(animated: true)
+        updatePanelVisibility()
         updateOutsideClickMonitoring()
         updateAttentionPeekTimeout()
     }
@@ -272,7 +292,7 @@ final class NotchController {
 
         guard let index = NotchScreenSelector.select(from: candidates, preference: settings.displayPreference) else {
             geometry = nil
-            panel?.orderOut(nil)
+            updatePanelVisibility()
             return
         }
 
@@ -281,9 +301,67 @@ final class NotchController {
         geometry = newGeometry
         model.update(state: machine.state, geometry: newGeometry)
         updatePanelFrame(animated: false)
-        if isStarted {
-            panel?.orderFrontRegardless()
+        updateFullScreenCoverage()
+        updatePanelVisibility()
+        if let panel, panel.isVisible {
+            // Keep the panel frontmost after a display change.
+            panel.orderFrontRegardless()
+        }
+        hostingView?.reconcilePointerLocation()
+    }
+
+    // MARK: Full screen and visibility
+
+    private func workspaceChanged() {
+        updateFullScreenCoverage()
+        fullScreenRecheckTask?.cancel()
+        fullScreenRecheckTask = Task { [weak self] in
+            try? await Task.sleep(for: Self.fullScreenRecheckDelay)
+            guard !Task.isCancelled else { return }
+            self?.updateFullScreenCoverage()
+        }
+    }
+
+    /// Reads the window list only when the notch is virtual; a physical notch never hides.
+    private func updateFullScreenCoverage() {
+        let covered = if let geometry, !geometry.hasPhysicalNotch {
+            FullScreenCoverage.isCovered(appKitScreenFrame: geometry.screenFrame)
+        } else {
+            false
+        }
+        guard covered != isFullScreenCovered else { return }
+        isFullScreenCovered = covered
+        updatePanelVisibility()
+    }
+
+    /// Shows or hides the panel. Hiding waits for a collapse animation to finish.
+    private func updatePanelVisibility() {
+        guard isStarted, let panel else { return }
+        let visible = geometry.map {
+            NotchVisibility.isVisible(
+                state: machine.state,
+                hasPhysicalNotch: $0.hasPhysicalNotch,
+                isFullScreenCovered: isFullScreenCovered
+            )
+        } ?? false
+
+        hideTask?.cancel()
+        hideTask = nil
+
+        if visible {
+            guard !panel.isVisible else { return }
+            panel.orderFrontRegardless()
             hostingView?.reconcilePointerLocation()
+        } else if panel.isVisible {
+            guard geometry != nil else {
+                panel.orderOut(nil)
+                return
+            }
+            hideTask = Task { [weak self] in
+                try? await Task.sleep(for: Self.shrinkDelay)
+                guard !Task.isCancelled else { return }
+                self?.panel?.orderOut(nil)
+            }
         }
     }
 

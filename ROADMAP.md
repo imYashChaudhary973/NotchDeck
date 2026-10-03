@@ -46,7 +46,15 @@ The detailed brief for every phase — including its *Coding Agent Prompt* — i
 
 **Status:** In Review — implemented on `feature/phase-1-foundation`; complete once merged to `main`.
 
-Verification so far: 80 unit tests pass; every notch state rendered off-screen and reviewed; panel geometry checked on a notched built-in display and an external non-notched display (virtual notch); Idle → Live → Peek → Expanded → Collapse, Shelf, attention auto-peek, interruption and restoration exercised via the debug panel; idle CPU 0%, 0 wakeups. Not yet manually verified: full-screen apps / Spaces switching, real file drag over the notch, display hot-plug, Launch at Login from `/Applications`.
+Verification so far: 95 unit tests pass with no warnings; every notch state rendered off-screen and reviewed; panel geometry checked on a notched built-in display (220 × 38 pt at layer 27, flush with the top edge) and an external non-notched display (virtual notch); Idle → Live → Peek → Expanded → Collapse, Shelf, attention auto-peek, interruption and restoration exercised via the debug panel; idle CPU 0%, 0 wakeups. Full-screen behavior is defined and unit tested ([ADR 0001](docs/decisions/0001-notch-window-strategy.md)); drag descriptions are unit tested.
+
+Manual checks before merge (need a person at the Mac):
+- [ ] Full-screen app on the notched display: the notch stays visible in the black band.
+- [ ] Full-screen app on an external display with `Display: Primary display`: the virtual notch hides; *Claude Waiting* in the debug panel still peeks.
+- [ ] Switching Spaces: the notch stays put on every Space.
+- [ ] Dragging a real Finder file over the notch opens the Shelf; releasing returns the file to Finder.
+- [ ] Connecting / disconnecting an external display and closing the lid move the notch to the right display.
+- [ ] Launch at Login from a copy in `/Applications` (toggle in Settings, log out and back in).
 
 **Goals**
 - Establish the notch surface and the core pipeline every later feature depends on.

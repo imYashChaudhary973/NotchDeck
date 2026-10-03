@@ -28,7 +28,13 @@ Only public APIs may be used.
 
 **Geometry** comes from `NSScreen.safeAreaInsets.top` and `auxiliaryTopLeftArea` / `auxiliaryTopRightArea` (macOS 12+). The notch is the gap between the two auxiliary areas. Displays without a notch get a *virtual notch* (180 pt wide, menu-bar height) centered at the top. `NotchGeometry` is pure and unit tested.
 
-**Display selection**: `Automatic` uses the built-in notched display when connected, otherwise the primary display; `Primary display` always uses the primary. Re-evaluated on `NSApplication.didChangeScreenParametersNotification`.
+**Display selection**: `Automatic` uses the built-in notched display when connected, otherwise the primary display; `Primary display` always uses the primary. Re-evaluated on `NSApplication.didChangeScreenParametersNotification`, which covers connecting and disconnecting displays, closing the lid (clamshell) and resolution changes. If no screen is available the panel is ordered out until one returns.
+
+**Full-screen apps**:
+- *Physical notch* — the panel stays visible. Full-screen apps leave the camera housing's band black, so the notch covers no content.
+- *Virtual notch* — a 180 pt pill would cover a full-screen app's content (video, slides), so the panel hides while resting (Idle, Live Activity) and appears only for transient states, e.g. an attention peek. Hover can't open it while hidden.
+- Detection (`FullScreenCoverage`) reads on-screen window layers and bounds from `CGWindowListCopyWindowInfo`: a layer-0 window of another app that contains the whole display counts as full screen; zoomed windows stop below the menu bar and don't. Only layers, bounds and PIDs are read — never titles — so no Screen Recording permission is required.
+- It runs only for a virtual notch, on `NSWorkspace.activeSpaceDidChangeNotification` and `didActivateApplicationNotification`, plus one re-check 1 s later because full-screen transitions animate after the Space changes. No polling.
 
 **Sizing and animation**: the SwiftUI surface animates its size with interruptible springs inside the panel. The panel frame follows the state:
 - when growing, the panel is enlarged immediately (to the union of old and new sizes) so the surface can animate outward;
@@ -51,5 +57,6 @@ Transparent panel regions pass clicks through to the windows below.
 
 - The notch panel needs no permissions (no Accessibility, no Input Monitoring).
 - Idle cost was measured at 0% CPU and 0 wakeups.
+- Over full-screen apps on displays without a notch, the resting notch is hidden; apps that fake full screen with a non-layer-0 window aren't detected.
 - Hover can only begin over the visible surface (the physical notch when idle). A wider "approach" region for drag-and-drop is deferred to Phase 4.
 - Keyboard input (e.g. Escape to collapse) isn't possible while the panel refuses key status; keyboard navigation will be designed in Phase 6.
