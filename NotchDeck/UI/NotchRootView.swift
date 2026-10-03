@@ -17,6 +17,8 @@ struct NotchRootView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .animation(stateAnimation, value: model.state)
         .animation(stateAnimation, value: model.resolution.primary?.key)
+        // The expanded surface re-fits when its content is measured; animate that too.
+        .animation(stateAnimation, value: model.expandedContentHeight)
         .environment(\.colorScheme, .dark)
     }
 

@@ -20,6 +20,8 @@ final class NotchController {
     static let shrinkDelay: Duration = .milliseconds(550)
     /// Full-screen transitions animate after the Space changes; check coverage again once they settle.
     static let fullScreenRecheckDelay: Duration = .seconds(1)
+    /// Warm-up runs once launch has settled, so it never competes with startup work.
+    static let prewarmDelay: Duration = .seconds(1)
 
     let model: NotchViewModel
     var onOpenSettings: (() -> Void)? {
@@ -43,6 +45,7 @@ final class NotchController {
     private var shrinkTask: Task<Void, Never>?
     private var hideTask: Task<Void, Never>?
     private var fullScreenRecheckTask: Task<Void, Never>?
+    private var prewarmTask: Task<Void, Never>?
     private var attentionPeekTask: Task<Void, Never>?
     private var pointerExitTask: Task<Void, Never>?
     private var isStarted = false
@@ -110,6 +113,12 @@ final class NotchController {
 
         observeSettings()
         updateScreen()
+
+        prewarmTask = Task { [weak self] in
+            try? await Task.sleep(for: Self.prewarmDelay)
+            guard !Task.isCancelled, let geometry = self?.geometry else { return }
+            await NotchPrewarmer.run(geometry: geometry)
+        }
     }
 
     func stop() {
@@ -123,7 +132,7 @@ final class NotchController {
         workspaceObservers.forEach(NSWorkspace.shared.notificationCenter.removeObserver)
         workspaceObservers.removeAll()
         removeOutsideClickMonitors()
-        [shrinkTask, hideTask, fullScreenRecheckTask, attentionPeekTask, pointerExitTask].forEach { $0?.cancel() }
+        [shrinkTask, hideTask, fullScreenRecheckTask, prewarmTask, attentionPeekTask, pointerExitTask].forEach { $0?.cancel() }
         panel?.orderOut(nil)
         panel = nil
         hostingView = nil

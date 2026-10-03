@@ -17,7 +17,18 @@ struct NotchMetrics: Equatable, Sendable {
 /// Maps presentation states to surface sizes for a given notch.
 enum NotchLayout {
     /// Width of each side "ear" beside the notch in the compact Live Activity.
-    static let compactEarWidth: CGFloat = 40
+    static let compactEarWidth: CGFloat = 52
+    /// Inset of the compact glyph and accessory from the outer edges of the ears.
+    static let compactContentInset: CGFloat = 12
+    /// Minimum gap between compact content and the notch.
+    static let compactNotchGap: CGFloat = 4
+    static let compactGlyphSize: CGFloat = 16
+    static let compactAccessoryFontSize: CGFloat = 13
+
+    /// The widest the compact accessory may draw before it scales down.
+    static var compactAccessoryMaxWidth: CGFloat {
+        compactEarWidth - compactContentInset - compactNotchGap
+    }
     static let peekWidth: CGFloat = 420
     static let peekContentHeight: CGFloat = 56
     static let expandedWidth: CGFloat = 600
@@ -78,6 +89,12 @@ enum NotchLayout {
                 bottomCornerRadius: 28
             )
         }
+    }
+
+    /// Room for content beside the notch in Peek's top row (inside its 16 pt padding, clear of the notch).
+    static func peekSideContentWidth(notchWidth: CGFloat) -> CGFloat {
+        let bodyWidth = max(peekWidth, notchWidth + compactEarWidth * 2)
+        return max((bodyWidth - notchWidth) / 2 - 16 - compactNotchGap, 0)
     }
 
     static func clampedExpandedContentHeight(_ measured: CGFloat?) -> CGFloat {

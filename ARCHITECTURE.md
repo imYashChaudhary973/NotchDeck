@@ -65,7 +65,7 @@ The **resting state** is `liveActivity` when there is a primary activity, otherw
 | State | Surface |
 | --- | --- |
 | `idle` | Exactly the physical notch (or a 180 pt virtual notch on displays without one). |
-| `liveActivity` | Notch plus a 40 pt "ear" on each side: glyph on the leading ear, accessory (countdown, progress ring, symbol) on the trailing ear. |
+| `liveActivity` | Notch plus a 52 pt "ear" on each side: glyph pinned to the leading edge, accessory (countdown, progress ring, symbol) to the trailing edge. |
 | `peek` | 420 pt wide: icon tile and status beside the notch, then title and subtitle — or a segmented level bar for `level` content (volume HUD). |
 | `expanded` | The **command center**, 600 pt wide, height fits its content (56–300 pt below the notch row). Section tabs sit beside the notch; the featured activity gets a large card and the next four go in a widget column. See below. |
 | `shelf` | Drop target with three tiles (Tray / Copy / AirDrop) and the dragged item's name; the tile under the pointer highlights. Phase 1 refuses drops (the File Shelf is Phase 4). |
@@ -186,11 +186,12 @@ NotchDeck/
 ├── Settings/                AppSettings, SettingsView
 └── UI/
     ├── NotchRootView.swift
+    ├── NotchPrewarmer.swift  off-screen first-render warm-up
     ├── Compact/  Peek/  Expanded/  Shelf/
     └── Components/          NotchShape, activity glyph/accessory/progress components
 NotchDeckTests/
 ├── Activities/              store, resolver, engine tests
-├── Notch/                   state machine, geometry, layout, full-screen visibility, drag description tests
+├── Notch/                   state machine, geometry, layout, compact layout, full-screen visibility, drag description, warm-up tests
 └── Settings/                settings persistence tests
 ```
 

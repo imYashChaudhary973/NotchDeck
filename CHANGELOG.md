@@ -14,11 +14,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   - Borderless, non-activating notch panel above the menu bar, on all Spaces and over full-screen apps. On displays without a physical notch, the resting virtual notch hides over full-screen apps (detected from public window bounds, no permissions) and still appears for attention peeks.
   - Activity Engine: `NotchActivity`, `ActivityPriority` (10–60), `ActivityStore`, `ActivityResolver`, provider protocol, event-driven expiry, queueing, priority interruption and automatic restoration.
   - `NotchStateMachine` with Idle, Live Activity, Peek, Expanded and Shelf; hover, click, outside-click dismissal, attention auto-peek and basic drag detection.
-  - SwiftUI notch surface with interruptible spring animations (Reduce Motion respected); the expanded surface sizes itself to its content.
+  - SwiftUI notch surface with interruptible spring animations (Reduce Motion respected); the expanded surface sizes itself to its content, animating any re-fit.
+  - Live Activity with 52 pt ears, a 16 pt glyph and 13 pt accessory pinned to the outer edges; compact and Peek rows ride the edges as the surface opens.
+  - Off-screen warm-up after launch so the first animation of each state doesn't drop frames.
   - Command-center design: section tabs beside the notch, featured card plus widget column, Now Playing card, metric and toggle rows, segmented volume HUD, approval-style Peek, and shelf drop tiles — driven by new activity content styles (`media`, `level`, `metric`, `toggle`) and simulated in the debug panel ("Command Center Demo", "Volume", "Keep Awake", "System Stats").
   - Basic settings (hover, collapse, attention peek, display).
   - Debug-only activities panel and provider.
-  - 95 unit tests (store, resolver, engine, state machine, geometry, layout, full-screen visibility, drag description, settings).
+  - 101 unit tests (store, resolver, engine, state machine, geometry, layout, compact layout, full-screen visibility, drag description, warm-up samples, settings).
   - ADRs 0001–0004.
 - Six-phase engineering plan (`docs/development/engineering-plan.md`), linked from `ROADMAP.md`, `ARCHITECTURE.md` and `AGENTS.md`.
 - Phase 0 repository bootstrap:

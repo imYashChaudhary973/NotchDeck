@@ -10,24 +10,30 @@ struct PeekView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack(spacing: 0) {
-                if let activity {
-                    if case .level = activity.presentation.content {
-                        // HUD style: a bare glyph, like the system volume overlay.
-                        Image(systemName: activity.presentation.symbolName)
-                            .font(.system(size: 15, weight: .semibold))
-                            .accessibilityHidden(true)
-                    } else {
-                        IconTile(presentation: activity.presentation, size: 24, filled: true)
+            // Pinned to the edges as overlays so the row doesn't reflow while the surface grows.
+            Color.clear
+                .overlay(alignment: .leading) {
+                    if let activity {
+                        if case .level = activity.presentation.content {
+                            // HUD style: a bare glyph, like the system volume overlay.
+                            Image(systemName: activity.presentation.symbolName)
+                                .font(.system(size: 15, weight: .semibold))
+                                .accessibilityHidden(true)
+                        } else {
+                            IconTile(presentation: activity.presentation, size: 24, filled: true)
+                        }
                     }
                 }
-                Spacer(minLength: notchSize.width)
-                if let activity {
-                    trailing(for: activity)
+                .overlay(alignment: .trailing) {
+                    if let activity {
+                        trailing(for: activity)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.8)
+                            .frame(maxWidth: NotchLayout.peekSideContentWidth(notchWidth: notchSize.width), alignment: .trailing)
+                    }
                 }
-            }
-            .padding(.horizontal, 16)
-            .frame(height: notchSize.height)
+                .padding(.horizontal, 16)
+                .frame(height: notchSize.height)
 
             Group {
                 if let activity, case .level(let level) = activity.presentation.content {
