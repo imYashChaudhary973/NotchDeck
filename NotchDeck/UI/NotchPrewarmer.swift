@@ -53,6 +53,15 @@ enum NotchPrewarmer {
         view.cacheDisplay(in: view.bounds, to: bitmap)
     }
 
+    /// A tiny PNG, so the artwork image path is drawn once too.
+    private static let sampleArtwork: Data? = {
+        guard let bitmap = NSBitmapImageRep(
+            bitmapDataPlanes: nil, pixelsWide: 4, pixelsHigh: 4, bitsPerSample: 8, samplesPerPixel: 4,
+            hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0
+        ) else { return nil }
+        return bitmap.representation(using: .png, properties: [:])
+    }()
+
     /// One activity per content style and compact accessory. Titles cover common letters and
     /// digits so their glyphs are rasterized ahead of time too.
     static func sampleActivities(now: Date = .now) -> [NotchActivity] {
@@ -80,7 +89,18 @@ enum NotchPrewarmer {
             )),
             sample("media", .music, .active, ActivityPresentation(
                 symbolName: "music.note", accent: .pink, compactAccessory: .symbol("waveform"),
-                content: .media(MediaContent(isPlaying: true, duration: 180, previousActionID: "p", playPauseActionID: "t", nextActionID: "n"))
+                content: .media(MediaContent(
+                    isPlaying: true, duration: 180, artwork: sampleArtwork, trackID: "track",
+                    previousActionID: "p", playPauseActionID: "t", nextActionID: "n"
+                ))
+            )),
+            sample("schedule", .meeting, .passive, ActivityPresentation(
+                symbolName: "calendar", accent: .blue,
+                content: .schedule(ScheduleContent(entries: [
+                    .init(id: "e1", title: "Standup", start: now, end: now.addingTimeInterval(900), isNow: true, joinActionID: "j"),
+                    .init(id: "e2", title: "Design Review", start: now.addingTimeInterval(3600), end: now.addingTimeInterval(5400), accent: .purple),
+                    .init(id: "e3", title: "Offsite", start: now, end: now.addingTimeInterval(86_400), isAllDay: true, accent: .green),
+                ]))
             )),
             sample("level", .system, .active, ActivityPresentation(
                 symbolName: "speaker.wave.2.fill", accent: .orange, compactAccessory: .text("50%"),

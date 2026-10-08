@@ -141,6 +141,11 @@ private struct FeaturedCard: View {
                 FeaturedHeader(activity: activity)
                 ActionGrid(activity: activity, items: actions.items, model: model)
             }
+        case .schedule(let schedule):
+            VStack(alignment: .leading, spacing: 8) {
+                FeaturedHeader(activity: activity)
+                ScheduleList(activity: activity, schedule: schedule, model: model)
+            }
         default:
             StandardFeatured(activity: activity, model: model)
         }
@@ -356,13 +361,16 @@ private struct MediaCard: View {
     let media: MediaContent
     let model: NotchViewModel
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 12) {
-                Artwork(media: media, accent: activity.presentation.accent)
+                MediaArtwork(media: media, accent: activity.presentation.accent)
                     .frame(width: 64, height: 64)
 
                 VStack(alignment: .leading, spacing: 8) {
+                    // A new track slides in; play/pause and position changes don't animate it.
                     VStack(alignment: .leading, spacing: 1) {
                         Text(activity.title)
                             .font(.system(size: 14, weight: .semibold))
@@ -373,6 +381,11 @@ private struct MediaCard: View {
                         }
                     }
                     .lineLimit(1)
+                    .id(media.trackID)
+                    .transition(reduceMotion ? .opacity : .asymmetric(
+                        insertion: .move(edge: .trailing).combined(with: .opacity),
+                        removal: .move(edge: .leading).combined(with: .opacity)
+                    ))
 
                     HStack(spacing: 14) {
                         transportButton("backward.fill", media.previousActionID, label: "Previous")
@@ -381,6 +394,7 @@ private struct MediaCard: View {
                                 Image(systemName: media.isPlaying ? "pause.fill" : "play.fill")
                                     .font(.system(size: 13, weight: .bold))
                                     .foregroundStyle(.black)
+                                    .contentTransition(.symbolEffect(.replace))
                                     .frame(width: 30, height: 30)
                                     .background(Circle().fill(.white))
                             }
@@ -388,8 +402,12 @@ private struct MediaCard: View {
                             .accessibilityLabel(media.isPlaying ? "Pause" : "Play")
                         }
                         transportButton("forward.fill", media.nextActionID, label: "Next")
+                        ForEach(activity.actions) { action in
+                            CapsuleActionButton(action: action) { model.perform(action, on: activity) }
+                        }
                     }
                 }
+                .clipped()
                 Spacer(minLength: 0)
             }
 
@@ -397,6 +415,8 @@ private struct MediaCard: View {
                 PlaybackProgress(media: media, duration: duration, tint: .white)
             }
         }
+        .animation(reduceMotion ? .easeInOut(duration: 0.15) : .spring(response: 0.4, dampingFraction: 0.85), value: media.trackID)
+        .animation(.easeInOut(duration: 0.2), value: media.isPlaying)
     }
 
     @ViewBuilder
@@ -412,33 +432,6 @@ private struct MediaCard: View {
             .buttonStyle(.plain)
             .accessibilityLabel(label)
         }
-    }
-}
-
-private struct Artwork: View {
-    let media: MediaContent
-    let accent: ActivityAccent
-
-    var body: some View {
-        let shape = RoundedRectangle(cornerRadius: 10, style: .continuous)
-        Group {
-            if let data = media.artwork, let image = NSImage(data: data) {
-                Image(nsImage: image).resizable().scaledToFill()
-            } else {
-                LinearGradient(
-                    colors: [accent.color.opacity(0.95), .purple.opacity(0.8), .indigo],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-                .overlay {
-                    Image(systemName: media.artworkSymbol)
-                        .font(.system(size: 24, weight: .semibold))
-                        .foregroundStyle(.white.opacity(0.9))
-                }
-            }
-        }
-        .clipShape(shape)
-        .accessibilityHidden(true)
     }
 }
 
@@ -471,6 +464,50 @@ private struct PlaybackProgress: View {
     static func format(_ seconds: TimeInterval) -> String {
         let total = Int(seconds.rounded(.down))
         return String(format: "%d:%02d", total / 60, total % 60)
+    }
+}
+
+// MARK: - Schedule
+
+/// Timed entries (meetings) as rows: time, a calendar-colored bar, the title and a Join button.
+private struct ScheduleList: View {
+    let activity: NotchActivity
+    let schedule: ScheduleContent
+    let model: NotchViewModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            ForEach(schedule.entries) { entry in
+                HStack(spacing: 8) {
+                    Text(entry.isAllDay ? "All day" : entry.start.formatted(date: .omitted, time: .shortened))
+                        .font(.system(size: 11, weight: .medium).monospacedDigit())
+                        .foregroundStyle(entry.isNow ? .white : .secondary)
+                        .frame(width: 58, alignment: .leading)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                    Capsule()
+                        .fill(entry.accent.tileTint)
+                        .frame(width: 3, height: 14)
+                    Text(entry.title)
+                        .font(.system(size: 12, weight: entry.isNow ? .semibold : .regular))
+                        .lineLimit(1)
+                    Spacer(minLength: 4)
+                    if entry.isNow {
+                        Text("Now")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(entry.accent.tileTint)
+                    }
+                    if let join = entry.joinActionID {
+                        CapsuleActionButton(action: ActivityAction(id: join, title: "Join"), compact: true) {
+                            model.perform(actionID: join, on: activity)
+                        }
+                        .accessibilityLabel("Join \(entry.title)")
+                    }
+                }
+                .frame(height: 22)
+                .accessibilityElement(children: .combine)
+            }
+        }
     }
 }
 
@@ -572,6 +609,14 @@ private struct WidgetRow: View {
                     CompactActionButtons(activity: activity, items: Array(actions.items.prefix(count)), model: model)
                 }
             }
+        case .schedule:
+            // The next entry ("11:00 Design Review").
+            if let subtitle = activity.subtitle {
+                Text(subtitle)
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
         case .standard:
             // A ticking countdown says more than a static subtitle (e.g. a running timer).
             if hasCountdown {
@@ -666,6 +711,7 @@ private struct CapsuleActionButton: View {
                     Image(systemName: systemImage).font(.system(size: 10, weight: .semibold))
                 }
                 Text(action.title)
+                    .lineLimit(1)
             }
             .font(.system(size: 11, weight: .semibold))
             .foregroundStyle(action.isDestructive ? .red : .white)
@@ -673,6 +719,8 @@ private struct CapsuleActionButton: View {
             .padding(.vertical, 5)
             .background(Capsule().fill(.white.opacity(0.14)))
             .contentShape(Capsule())
+            // Never wraps; the row's other text truncates instead.
+            .fixedSize()
         }
         .buttonStyle(.plain)
     }

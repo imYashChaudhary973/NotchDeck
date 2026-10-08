@@ -77,6 +77,8 @@ struct MediaContent: Equatable, Sendable {
     /// Encoded artwork image (PNG/JPEG). When nil, `artworkSymbol` is drawn on a gradient.
     var artwork: Data?
     var artworkSymbol: String
+    /// Identifies the track, so the notch can animate track changes. Nil when unknown.
+    var trackID: String?
     /// Action IDs routed to the provider for the transport buttons. Nil hides the button.
     var previousActionID: ActivityAction.ID?
     var playPauseActionID: ActivityAction.ID?
@@ -89,6 +91,7 @@ struct MediaContent: Equatable, Sendable {
         duration: TimeInterval? = nil,
         artwork: Data? = nil,
         artworkSymbol: String = "music.note",
+        trackID: String? = nil,
         previousActionID: ActivityAction.ID? = nil,
         playPauseActionID: ActivityAction.ID? = nil,
         nextActionID: ActivityAction.ID? = nil
@@ -99,6 +102,7 @@ struct MediaContent: Equatable, Sendable {
         self.duration = duration
         self.artwork = artwork
         self.artworkSymbol = artworkSymbol
+        self.trackID = trackID
         self.previousActionID = previousActionID
         self.playPauseActionID = playPauseActionID
         self.nextActionID = nextActionID
@@ -189,6 +193,44 @@ struct ActionsContent: Equatable, Sendable {
     var items: [ActionItem]
 }
 
+/// A short list of timed entries, such as the rest of today's meetings.
+struct ScheduleContent: Equatable, Sendable {
+    struct Entry: Identifiable, Equatable, Sendable {
+        let id: String
+        var title: String
+        var start: Date
+        var end: Date
+        var isAllDay: Bool
+        var accent: ActivityAccent
+        /// Whether the entry is happening now.
+        var isNow: Bool
+        /// When set, a Join button invokes this action.
+        var joinActionID: ActivityAction.ID?
+
+        init(
+            id: String,
+            title: String,
+            start: Date,
+            end: Date,
+            isAllDay: Bool = false,
+            accent: ActivityAccent = .blue,
+            isNow: Bool = false,
+            joinActionID: ActivityAction.ID? = nil
+        ) {
+            self.id = id
+            self.title = title
+            self.start = start
+            self.end = end
+            self.isAllDay = isAllDay
+            self.accent = accent
+            self.isNow = isNow
+            self.joinActionID = joinActionID
+        }
+    }
+
+    var entries: [Entry]
+}
+
 /// The kind of content an activity carries, which selects how the notch draws it in detail.
 enum ActivityContent: Equatable, Sendable {
     case standard
@@ -197,6 +239,7 @@ enum ActivityContent: Equatable, Sendable {
     case metric(MetricContent)
     case toggle(ToggleContent)
     case actions(ActionsContent)
+    case schedule(ScheduleContent)
 }
 
 /// A choice among a few options, such as the audio output device. Shown as a list on the

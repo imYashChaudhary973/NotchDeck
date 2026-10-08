@@ -34,8 +34,21 @@ All of it is treated as private by default.
 | Settings | `UserDefaults` | Preferences |
 | Timers (duration, end time, the optional name you type) | `UserDefaults` (`timers.saved`) | Running timers survive a relaunch. Removed when they finish or are cancelled, and when Timers is turned off. |
 | Keep Awake session (on/off, end time) | `UserDefaults` (`keepAwake.session`) | An active session survives a relaunch |
+| Calendars you turned off (calendar IDs only), look-ahead and notch timing | `UserDefaults` (`calendar.*`) | Calendar settings |
 
 CPU, memory, battery and audio-device information is read on demand, shown in the notch and never stored, logged or sent anywhere.
+
+### Calendar
+
+- Read-only access through EventKit, requested only when you turn Calendar on in Settings (or press Allow Access…). Turning the feature off stops all reading; the permission itself is managed in System Settings ▸ Privacy & Security ▸ Calendars.
+- Event titles, times and video-call links are kept in memory while shown and never stored, logged or sent anywhere. Event notes and locations are scanned in memory only to find a meeting link.
+- Join opens only `https`/`http` links to known meeting services (or a location that is just a web link), in your default browser or meeting app.
+
+### Now Playing
+
+- Track information comes from notifications Music and Spotify broadcast on the Mac. Reading it needs no permission and nothing is stored.
+- Playback controls, the position and artwork use Apple Events and need your Automation permission, which macOS asks for the first time you press a control. NotchDeck never launches Music or Spotify.
+- **Network:** Spotify provides artwork as a link. NotchDeck downloads it over HTTPS, only from Spotify's image servers (`scdn.co`, `spotifycdn.com`), without cookies or a cache (ephemeral session). It is the only network request NotchDeck makes, and it sends nothing about you beyond the image request itself. Music artwork comes from the Music app directly.
 
 ## For Contributors
 

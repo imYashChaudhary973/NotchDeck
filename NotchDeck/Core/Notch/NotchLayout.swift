@@ -23,6 +23,8 @@ enum NotchLayout {
     /// Minimum gap between compact content and the notch.
     static let compactNotchGap: CGFloat = 4
     static let compactGlyphSize: CGFloat = 16
+    /// Album artwork in the leading ear, in place of the glyph.
+    static let compactArtworkSize: CGFloat = 20
     static let compactAccessoryFontSize: CGFloat = 13
 
     /// The widest the compact accessory may draw before it scales down.

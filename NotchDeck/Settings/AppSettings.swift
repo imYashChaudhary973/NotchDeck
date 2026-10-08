@@ -8,6 +8,8 @@ enum Feature: CaseIterable, Sendable {
     case systemMetrics
     case audio
     case quickActions
+    case music
+    case calendar
 
     var title: String {
         switch self {
@@ -16,6 +18,8 @@ enum Feature: CaseIterable, Sendable {
         case .systemMetrics: "System metrics"
         case .audio: "Audio controls"
         case .quickActions: "Quick actions"
+        case .music: "Now Playing"
+        case .calendar: "Calendar"
         }
     }
 }
@@ -39,7 +43,15 @@ final class AppSettings {
         static let quickActionsEnabled = "features.quickActions.enabled"
         static let scrollAdjustsVolume = "audio.scrollAdjustsVolume"
         static let timerPlaysSound = "timers.playsSound"
+        static let musicEnabled = "features.music.enabled"
+        static let calendarEnabled = "features.calendar.enabled"
+        static let calendarLookAheadHours = "calendar.lookAheadHours"
+        static let calendarNotchLeadMinutes = "calendar.notchLeadMinutes"
+        static let calendarExcludedIDs = "calendar.excludedCalendarIDs"
     }
+
+    static let calendarLookAheadOptions = [3, 6, 12, 24]
+    static let calendarNotchLeadOptions = [5, 10, 15, 30]
 
     var peeksOnHover: Bool {
         didSet { defaults.set(peeksOnHover, forKey: Key.peeksOnHover) }
@@ -79,6 +91,30 @@ final class AppSettings {
         didSet { defaults.set(quickActionsEnabled, forKey: Key.quickActionsEnabled) }
     }
 
+    var musicEnabled: Bool {
+        didSet { defaults.set(musicEnabled, forKey: Key.musicEnabled) }
+    }
+
+    /// Off by default: turning it on is what asks for calendar access.
+    var calendarEnabled: Bool {
+        didSet { defaults.set(calendarEnabled, forKey: Key.calendarEnabled) }
+    }
+
+    /// How many hours ahead the command-center schedule looks.
+    var calendarLookAheadHours: Int {
+        didSet { defaults.set(calendarLookAheadHours, forKey: Key.calendarLookAheadHours) }
+    }
+
+    /// How many minutes before it starts a meeting takes the notch.
+    var calendarNotchLeadMinutes: Int {
+        didSet { defaults.set(calendarNotchLeadMinutes, forKey: Key.calendarNotchLeadMinutes) }
+    }
+
+    /// Calendars the user turned off. Stored as exclusions so new calendars show up automatically.
+    var calendarExcludedIDs: Set<String> {
+        didSet { defaults.set(calendarExcludedIDs.sorted(), forKey: Key.calendarExcludedIDs) }
+    }
+
     /// Scrolling over the notch changes the output volume. Off by default: it is easy to trigger by accident.
     var scrollAdjustsVolume: Bool {
         didSet { defaults.set(scrollAdjustsVolume, forKey: Key.scrollAdjustsVolume) }
@@ -104,6 +140,17 @@ final class AppSettings {
         quickActionsEnabled = Self.bool(Key.quickActionsEnabled, in: defaults, default: true)
         scrollAdjustsVolume = Self.bool(Key.scrollAdjustsVolume, in: defaults, default: false)
         timerPlaysSound = Self.bool(Key.timerPlaysSound, in: defaults, default: true)
+        musicEnabled = Self.bool(Key.musicEnabled, in: defaults, default: true)
+        calendarEnabled = Self.bool(Key.calendarEnabled, in: defaults, default: false)
+        calendarLookAheadHours = Self.option(Key.calendarLookAheadHours, in: defaults, from: Self.calendarLookAheadOptions, default: 12)
+        calendarNotchLeadMinutes = Self.option(Key.calendarNotchLeadMinutes, in: defaults, from: Self.calendarNotchLeadOptions, default: 15)
+        calendarExcludedIDs = Set(defaults.stringArray(forKey: Key.calendarExcludedIDs) ?? [])
+    }
+
+    /// Reads a stored choice, falling back to the default when it isn't one of the options.
+    private static func option(_ key: String, in defaults: UserDefaults, from options: [Int], default defaultValue: Int) -> Int {
+        let value = defaults.integer(forKey: key)
+        return options.contains(value) ? value : defaultValue
     }
 
     /// Reads a stored Bool, accepting launch-argument strings such as `-features.audio.enabled NO`.
@@ -118,7 +165,18 @@ final class AppSettings {
         case .systemMetrics: systemMetricsEnabled
         case .audio: audioEnabled
         case .quickActions: quickActionsEnabled
+        case .music: musicEnabled
+        case .calendar: calendarEnabled
         }
+    }
+
+    /// The calendar options, in the form the calendar feature uses.
+    var calendarConfiguration: CalendarProvider.Configuration {
+        CalendarProvider.Configuration(
+            lookAhead: TimeInterval(calendarLookAheadHours) * 3600,
+            rules: CalendarRules(notchLeadTime: TimeInterval(calendarNotchLeadMinutes) * 60),
+            excludedCalendarIDs: calendarExcludedIDs
+        )
     }
 
     /// The subset of settings the notch state machine depends on.

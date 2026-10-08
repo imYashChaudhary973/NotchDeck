@@ -40,10 +40,12 @@ struct AppSettingsTests {
         defaults.removePersistentDomain(forName: suiteName)
     }
 
-    @Test func featuresAreOnByDefaultAndScrollVolumeIsOff() {
+    @Test func featuresAreOnByDefaultExceptCalendarAndScrollVolume() {
         let settings = AppSettings(defaults: defaults)
 
-        #expect(Feature.allCases.allSatisfy(settings.isEnabled))
+        // Calendar needs a permission, which is asked for only when the user turns it on.
+        #expect(!settings.isEnabled(.calendar))
+        #expect(Feature.allCases.filter { $0 != .calendar }.allSatisfy(settings.isEnabled))
         #expect(!settings.scrollAdjustsVolume)
         #expect(settings.timerPlaysSound)
         defaults.removePersistentDomain(forName: suiteName)
@@ -70,6 +72,35 @@ struct AppSettingsTests {
 
         #expect(!settings.audioEnabled)
         #expect(settings.scrollAdjustsVolume)
+        defaults.removePersistentDomain(forName: suiteName)
+    }
+
+    @Test func calendarOptionsHaveDefaultsAndPersist() {
+        let settings = AppSettings(defaults: defaults)
+        #expect(settings.calendarLookAheadHours == 12)
+        #expect(settings.calendarNotchLeadMinutes == 15)
+        #expect(settings.calendarExcludedIDs.isEmpty)
+        #expect(settings.calendarConfiguration.rules == CalendarRules(notchLeadTime: 15 * 60))
+
+        settings.calendarLookAheadHours = 6
+        settings.calendarNotchLeadMinutes = 30
+        settings.calendarExcludedIDs = ["work", "holidays"]
+        let reloaded = AppSettings(defaults: defaults)
+
+        #expect(reloaded.calendarConfiguration.lookAhead == 6 * 3600)
+        #expect(reloaded.calendarConfiguration.rules.notchLeadTime == 30 * 60)
+        #expect(reloaded.calendarConfiguration.excludedCalendarIDs == ["work", "holidays"])
+        defaults.removePersistentDomain(forName: suiteName)
+    }
+
+    @Test func unknownCalendarOptionsFallBackToDefaults() {
+        defaults.set(7, forKey: AppSettings.Key.calendarLookAheadHours)
+        defaults.set(-1, forKey: AppSettings.Key.calendarNotchLeadMinutes)
+
+        let settings = AppSettings(defaults: defaults)
+
+        #expect(settings.calendarLookAheadHours == 12)
+        #expect(settings.calendarNotchLeadMinutes == 15)
         defaults.removePersistentDomain(forName: suiteName)
     }
 }

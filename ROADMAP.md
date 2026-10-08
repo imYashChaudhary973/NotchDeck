@@ -11,7 +11,7 @@ The detailed brief for every phase — including its *Coding Agent Prompt* — i
 | 0 | Repository bootstrap | **Complete** |
 | 1 | Notch foundation + Activity Engine + State Machine | **Complete** |
 | 2 | Timers + Keep Awake + System Metrics + Audio + Quick Actions | **Complete** |
-| 3 | Music + Calendar + Context Resolution | Not Started |
+| 3 | Music + Calendar + Context Resolution | **In Review** |
 | 4 | File Shelf + Clipboard | Not Started |
 | 5 | Claude Code + Codex + generic developer activity protocol | Not Started |
 | 6 | Profiles + Settings + Onboarding + Accessibility + Performance + QA | Not Started |
@@ -118,7 +118,16 @@ Still to check on real hardware:
 
 ## Phase 3 — Music + Calendar + Context Resolution
 
-**Status:** Not Started
+**Status:** In Review — implemented on `feature/phase-3-music-calendar` ([ADR 0006](docs/decisions/0006-media-and-calendar-providers.md)).
+
+Verification (2026-10-08, 14-inch M5 MacBook Pro): 243 unit tests pass with no warnings. The tests cover the calendar rules and their boundaries, meeting links, permission states (not determined, denied, restricted, write-only, declined prompt), the music player selection and capabilities, and the context sequence music → meeting → music. In the running app: a Music playback notification shows the Now Playing Live Activity and the command-center card; a track change slides the title in; pausing moves music to the command center. Calendar turned on by a launch argument shows the Allow Access row and no prompt. The scripts compile against Music's dictionary and don't launch Music when it isn't running. Meeting, schedule, starting-now and control-denied states were rendered off-screen and reviewed. Idle with Music, Spotify observers and Calendar registered: 0.0% CPU, 0 wake-ups; music on the notch: the same.
+
+Still to check on real hardware (they need real playback or a permission answer, which only the user can give):
+- [ ] Real Music playback: the Automation prompt on the first control press; play/pause/next/previous; artwork and progress after allowing.
+- [ ] Denying Automation: the controls are replaced by Allow Control….
+- [ ] Spotify (not installed on the verification Mac): track, progress, artwork download, controls.
+- [ ] Turning Calendar on in Settings shows the system prompt once; after allowing, real meetings appear; after denying, Open Settings… appears.
+- [ ] A real meeting interrupting real music, then music returning.
 
 **Goals**
 - Surface media and meetings, and make the resolver context-aware.
