@@ -36,6 +36,7 @@ A dedicated reporting channel has not been set up yet.
 - Request only the entitlements and permissions a shipped feature actually needs.
 - Do not request permissions speculatively for future features.
 - Prefer supported, public Apple APIs; no private frameworks for core functionality.
+- Current entitlements: `com.apple.security.automation.apple-events` only (hardened runtime; needed to control Music and Spotify). Apple Events are sent only to those apps, only while they run, and only fixed scripts are executed — never strings from other processes.
 
 ### Dependency review
 

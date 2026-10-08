@@ -72,7 +72,8 @@ Useful launch arguments (they override stored settings for that run):
 | `-NotchDeckShowDebugPanel YES` | Open the debug panel at launch (Debug builds) |
 | `-notch.displayPreference primary` | Put the notch on the primary display (test the virtual notch on external monitors) |
 | `-audio.scrollAdjustsVolume YES` | Turn on scroll-over-the-notch volume for that run |
-| `-features.<timers\|keepAwake\|systemMetrics\|audio\|quickActions>.enabled NO` | Turn a feature off for that run |
+| `-features.<timers\|keepAwake\|systemMetrics\|audio\|quickActions\|music>.enabled NO` | Turn a feature off for that run |
+| `-features.calendar.enabled YES` | Turn Calendar on for that run (shows the Allow Access row; does not prompt) |
 
 ## Testing
 
@@ -103,7 +104,8 @@ In Xcode: **Product ▸ Test** (⌘U).
 
 ## Entitlements
 
-- None at present. Hardened Runtime is enabled. `LSUIElement = YES` (accessory app).
+- `NotchDeck/NotchDeck.entitlements`: `com.apple.security.automation.apple-events` (the hardened runtime blocks Apple Events to Music and Spotify without it). Hardened Runtime is enabled. `LSUIElement = YES` (accessory app).
+- Usage descriptions (generated Info.plist, `INFOPLIST_KEY_…` build settings): `NSAppleEventsUsageDescription`, `NSCalendarsFullAccessUsageDescription`, `NSCalendarsUsageDescription`.
 - App Sandbox: **off for now**; to be revisited before first distribution ([ADR 0003](docs/decisions/0003-app-runtime-configuration.md)).
 
 ## Permissions
@@ -116,12 +118,17 @@ The notch itself needs **no** permissions (no Accessibility, Input Monitoring or
 | System metrics | Mach host statistics, `sysctl`, IOKit power sources — no permission |
 | Audio | CoreAudio HAL — no permission (output only; the microphone is never used) |
 | Quick Actions | `NSWorkspace` opens folders and apps — no permission. Screenshot opens the system Screenshot app instead of capturing, so no Screen Recording permission. |
-| Calendar | EventKit calendar access |
+| Now Playing | Distributed notifications from Music / Spotify — no permission. Controls, position and artwork: Automation (Apple Events), asked by macOS the first time a control is pressed |
+| Calendar | EventKit full calendar access, asked when Calendar is turned on in Settings |
 | Login item | ServiceManagement (`SMAppService`) — implemented; may need approval in System Settings ▸ General ▸ Login Items, and is unreliable for builds run from DerivedData |
 | Clipboard | `NSPasteboard` (no TCC prompt, but privacy-sensitive) |
 | Developer agents | Local IPC (design TBD in Phase 5) |
 
 Usage-description strings (`NS…UsageDescription`) are added alongside the feature that needs them.
+
+To test permission prompts again, reset them: `tccutil reset Calendar com.imyashchaudhary.NotchDeck` and `tccutil reset AppleEvents com.imyashchaudhary.NotchDeck`.
+
+To exercise Now Playing without playing music, post the notification Music sends, for example with a small Swift script calling `DistributedNotificationCenter.default().postNotificationName(Notification.Name("com.apple.Music.playerInfo"), object: nil, userInfo: ["Name": "Song", "Artist": "Artist", "Player State": "Playing", "Total Time": 200000], deliverImmediately: true)`.
 
 ## Troubleshooting
 

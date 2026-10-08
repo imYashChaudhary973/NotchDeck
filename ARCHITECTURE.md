@@ -2,7 +2,7 @@
 
 > The phase-by-phase brief behind this architecture is [`docs/development/engineering-plan.md`](docs/development/engineering-plan.md).
 
-> **Status: Phase 2 implemented.** The notch foundation, Activity Engine and state machine (Phase 1) and the local utility providers — Timers, Keep Awake, System Metrics, Audio, Quick Actions (Phase 2) — exist and are unit tested. No external integrations exist yet. Sections marked *(planned)* describe later phases.
+> **Status: Phase 3 implemented.** The notch foundation, Activity Engine and state machine (Phase 1), the local utility providers — Timers, Keep Awake, System Metrics, Audio, Quick Actions (Phase 2) — and Now Playing (Apple Music, Spotify) and Calendar (Phase 3) exist and are unit tested. Sections marked *(planned)* describe later phases.
 
 ## Core Principle
 
@@ -86,11 +86,12 @@ Providers choose how their activity is drawn in detail through `ActivityPresenta
 | Content | Rendered as | Intended for |
 | --- | --- | --- |
 | `.standard` | Title, subtitle, countdown/progress, action buttons | most activities |
-| `.media(MediaContent)` | Now Playing card: artwork, transport buttons, playback progress (ticks once a second only while visible and playing) | music (Phase 3) |
+| `.media(MediaContent)` | Now Playing card: artwork, transport buttons, playback progress (ticks once a second only while visible and playing). A new `trackID` slides the title in and cross-fades the artwork; the Live Activity shows the artwork in the leading ear. | music |
 | `.level(LevelContent)` | Segmented level bar (HUD) | volume (Phase 2) |
 | `.metric(MetricContent)` | Small bar with value | CPU, memory (Phase 2) |
 | `.toggle(ToggleContent)` | Switch | Keep Awake |
 | `.actions(ActionsContent)` | Tile grid on the featured card, button row in the widget column | Quick Actions, timer presets |
+| `.schedule(ScheduleContent)` | List of timed entries (time, calendar color, title, Now, Join) on the featured card; the subtitle in the widget column | calendar schedule |
 
 `.level` can be interactive: with `adjustActionID` the bar is draggable, and with `muteActionID` it gets a mute button. `ActivityPresentation.options` adds a selectable list to the featured card (output devices).
 
@@ -113,10 +114,46 @@ Phase 2 added three engine capabilities ([ADR 0005](docs/decisions/0005-local-ut
 | `SystemMetricsProvider` | `systemMetrics` | CPU, memory (colored by memory pressure), battery (`.commandCenter`). Brief "Charging" peek when power connects. | Mach `host_statistics(64)`, `sysctl kern.memorystatus_vm_pressure_level`, `DispatchSource` memory pressure, IOKit power-source notifications | Every 2 s while CPU/memory are on screen; otherwise only on battery and pressure events |
 | `AudioProvider` | `audio` | Volume level (draggable, mute, output device options), `.commandCenter`. A `.notch` HUD for 1.5 s after a scroll over the notch (opt-in setting). | CoreAudio HAL: default output device, virtual main volume, mute, device list, property listeners | Only on CoreAudio change notifications |
 | `QuickActionsProvider` | `quickActions` | Quick Actions grid (`.commandCenter`) | `NSWorkspace` (Downloads, Applications, Activity Monitor, Screenshot app, Screen Saver) | Never |
+| `MusicProvider` | `music` | Now Playing: `.notch` Passive (20) while playing, `.commandCenter` (22) while paused, withdrawn when stopped | Through `MediaProvider`s: distributed notifications and Apple Events (Automation permission, asked on first control) | Only on player notifications |
+| `CalendarProvider` | `calendar` | The next meeting on the notch (30 → 40 → 50 as it approaches), the schedule (`.commandCenter`), an access row while not allowed | EventKit (full access, asked when the feature is turned on) | At the next rule boundary or event start/end; once a minute while a countdown is on the notch; EventKit queried on changes and every 6 h |
 
 Timer priorities: running 30, last minute 35, last 10 s 40, finished 50 (for 10 s, then removed), paused 20. Running timers store their end date, so they stay accurate across sleep and relaunch; the countdown is drawn by `Text(timerInterval:)`.
 
 Quick actions implement the `QuickAction` protocol (`id`, `title`, `symbolName`, `availability`, `isActive`, `perform()`), and only `.available` ones are shown. **Lock Screen** is `.unavailable`: macOS has no public API for it. **Screen Saver** is the safe fallback; it locks the Mac when "Require password after screen saver begins" is on. **Screenshot** opens the system Screenshot app, so NotchDeck needs no Screen Recording permission. Listing expensive processes ("where permitted") is not implemented.
+
+### Music: `MediaProvider`
+
+`MusicProvider` never talks to a music service directly. It combines `MediaProvider`s — one per media app — and shows the player that most recently started playing (otherwise the most recently paused one). [ADR 0006](docs/decisions/0006-media-and-calendar-providers.md) has the details.
+
+```swift
+@MainActor protocol MediaProvider: AnyObject {
+    var id: String { get }; var name: String { get }
+    var nowPlaying: NowPlaying? { get }          // title, artist, album, state, position, duration, artwork, trackID
+    var capabilities: MediaCapabilities { get }  // artwork, progress, playPause, nextTrack, previousTrack
+    var controlAccess: MediaControlAccess { get } // undetermined / granted / denied (Automation)
+    func startObserving(onChange: @escaping @MainActor () -> Void)
+    func stopObserving()
+    func send(_ command: MediaCommand)
+    func refresh()                                // re-read what the app doesn't announce (position after a seek)
+}
+```
+
+- Missing capabilities are hidden in the notch: no transport buttons, no artwork, or no progress bar. With control denied, an "Allow Control…" button opens System Settings ▸ Privacy & Security ▸ Automation.
+- `ScriptableMediaProvider` (`Integrations/MediaApps/`) implements it for scriptable apps described by a `ScriptableMediaApp` (`AppleMusicApp`, `SpotifyApp`). It reads playback from the app's distributed notification (no permission). It reads the position and artwork and sends commands with Apple Events, off the main thread. It never launches the app.
+- No private frameworks (MediaRemote), so other apps' playback (browsers, podcasts) is not shown. To add a player, write another `ScriptableMediaApp` (or `MediaProvider`) and list it in `AppEnvironment`.
+
+### Calendar: `CalendarProvider`
+
+- Reads events through the `CalendarStore` protocol (`EventKitCalendarStore`, read-only; tests use a fake). Cancelled and declined events are dropped. Calendars can be excluded in Settings.
+- **Rules** (`CalendarRules`, pure): a meeting takes the notch `notchLeadTime` before it starts (default 15 min, Active 30). It becomes Time Sensitive (40) at 5 min and Attention Required (50, auto-peek) 1 min before. It stays as "Starting now" for 5 min (capped at its end), then leaves the notch. All-day events are listed only. Only the soonest qualifying meeting is a notch activity. Its ear shows minutes ("12m", "Now"), and its Peek status reads "In 12 min" / "Starting now".
+- **Actions**: Join opens the meeting link found by `MeetingLinkDetector` (event URL, location, then notes; known services only; `https`/`http` only) and takes the meeting off the notch. So does Dismiss. The schedule has a Join button per entry.
+- **Schedule** (`.commandCenter`, `.schedule` content): events in progress or starting within the look-ahead (default 12 h), up to six.
+- **Permission**: off by default; access is requested only when the user turns Calendar on (or presses Allow Access… in the command center or Settings). Without access the provider publishes only an access row; it never prompts on launch.
+- **Scheduling**: EventKit is queried on start, on `EKEventStoreChanged`, clock or day changes, wake, and every 6 h (each query reaches look-ahead + 6 h). Otherwise the provider sleeps until the next boundary of a cached event.
+
+### Context resolution
+
+Competing activities are resolved by priority alone; Phase 3 needed no resolver change ([ADR 0006](docs/decisions/0006-media-and-calendar-providers.md)). Music (20) is interrupted by a meeting within 15 minutes (30). The meeting escalates to 40 and then 50, which peeks once. When it leaves the notch (grace over, joined or dismissed), music is primary again. A running timer (30) keeps the notch against an upcoming meeting (30) until the meeting reaches 40. Paused music is in the command center and never comes back to the notch. `ContextResolutionTests` cover these sequences with the real providers.
 
 Each feature can be turned off in Settings ▸ Features. `AppEnvironment` registers a provider only while its feature is on. Turning a feature off unregisters it, cancelling timers or releasing Keep Awake. Quitting keeps saved timers and an active Keep Awake session for the next launch.
 
@@ -158,7 +195,7 @@ Each feature can be turned off in Settings ▸ Features. `AppEnvironment` regist
     }
     ```
 
-2. Create it in `AppEnvironment` and register it in `start()`. Phase 2 features are listed in `Feature` (`AppSettings`) and registered only while enabled.
+2. Create it in `AppEnvironment` and register it in `start()`. Features are listed in `Feature` (`AppSettings`) and registered only while enabled. A feature that needs a permission asks for it when the user turns it on (see Calendar), never at launch.
 3. To change urgency, republish the same `id` with a new `priority`. Withdraw with `publisher.withdraw(id:)`, or set `expiresAt` and let the engine remove it.
 4. Add unit tests for the provider's state logic, and test that it publishes the activities you expect (see `ActivityEngineTests` for a recording provider).
 
@@ -192,8 +229,8 @@ Provider rules:
 App            Entry point (MenuBarExtra), AppDelegate, AppEnvironment (composition root), auxiliary windows.
 Core           Activities (model, store, resolver, engine, provider protocol) and Notch (geometry, layout,
                state machine, panel, hosting view, controller, view model).
-Features       Activity providers: Timers, KeepAwake, SystemMetrics, Audio, QuickActions; DebugActivities (Debug builds only).
-Integrations   (planned) Bridges to external tools/apps (Apple Music, Spotify, Claude Code, Codex).
+Features       Activity providers: Timers, KeepAwake, SystemMetrics, Audio, QuickActions, Music, Calendar; DebugActivities (Debug builds only).
+Integrations   Bridges to external apps: MediaApps (Apple Music, Spotify). Planned: Claude Code, Codex (Phase 5).
 Services       Shared system services: LaunchAtLoginService.
 UI             SwiftUI views per state (Compact, Peek, Expanded, Shelf) and Components.
 Settings       AppSettings (UserDefaults-backed, Observable) and SettingsView.
@@ -216,7 +253,13 @@ NotchDeck/
 │   ├── SystemMetrics/       SystemMetrics (values + protocols), SystemStatistics (Mach/IOKit), SystemMetricsProvider
 │   ├── Audio/               AudioOutput (model + protocol), CoreAudioOutput, AudioProvider
 │   ├── QuickActions/        QuickAction (+ built-in actions), QuickActionsProvider
+│   ├── Music/               MediaProvider (+ NowPlaying, MediaCapabilities), MusicProvider
+│   ├── Calendar/            CalendarEvent (+ CalendarStore), CalendarRules (+ MeetingCountdown), MeetingLinkDetector,
+│   │                        CalendarProvider, EventKitCalendarStore
 │   └── DebugActivities/     DebugActivityProvider, DebugPanelView (#if DEBUG)
+├── Integrations/
+│   └── MediaApps/           ScriptableMediaApp (+ AppleMusicApp, SpotifyApp), ScriptableMediaProvider,
+│                            AppleScriptRunner, ArtworkLoader
 ├── Services/                LaunchAtLoginService
 ├── Settings/                AppSettings, SettingsView
 └── UI/
@@ -225,8 +268,9 @@ NotchDeck/
     ├── Compact/  Peek/  Expanded/  Shelf/
     └── Components/          NotchShape, activity glyph/accessory/progress components
 NotchDeckTests/
-├── Activities/              store, resolver, engine, placement and input-routing tests
-├── Features/                timer, keep awake, system metrics, audio and quick actions tests (with fakes)
+├── Activities/              store, resolver, engine, placement, input-routing and context-resolution tests
+├── Features/                timer, keep awake, system metrics, audio, quick actions, music, media-app parsing,
+│                            calendar rules, meeting links and calendar provider tests (with fakes)
 ├── Notch/                   state machine, geometry, layout, compact layout, full-screen visibility, drag description, display, warm-up tests
 └── Settings/                settings persistence tests
 ```
@@ -251,5 +295,6 @@ Significant decisions are recorded in [`docs/decisions/`](docs/decisions/):
 - [0003 — App runtime configuration](docs/decisions/0003-app-runtime-configuration.md)
 - [0004 — Command center presentation](docs/decisions/0004-command-center-presentation.md)
 - [0005 — Local utility providers](docs/decisions/0005-local-utility-providers.md)
+- [0006 — Media and calendar providers](docs/decisions/0006-media-and-calendar-providers.md)
 
 Write an ADR when a decision is hard to reverse, affects multiple domains, or chooses between real alternatives. See [`docs/decisions/README.md`](docs/decisions/README.md) for the template.

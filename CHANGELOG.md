@@ -8,6 +8,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
+- Phase 3 — Now Playing, Calendar and context resolution:
+  - Now Playing for Apple Music and Spotify behind a `MediaProvider` abstraction. Track, artist, album, artwork, progress and play/pause/next/previous, each marked unsupported when unavailable. It uses distributed notifications (no permission) and Apple Events (Automation permission, asked on the first control press); no private MediaRemote. NotchDeck never launches a media app. The Live Activity shows the artwork; the expanded card slides in a new track and cross-fades artwork. Paused music moves to the command center.
+  - Calendar via EventKit: access requested only when the feature is turned on, with every permission state handled. Calendar selection, a configurable look-ahead (3/6/12/24 h) and notch timing (5/10/15/30 min). The next meeting escalates on the notch (30 at 15 min, 40 at 5 min, 50 from 1 min before, with an auto-peek). It shows "Starting now" with Join for 5 minutes, then expires. A schedule appears in the command center. Meeting links are found in the event URL, location or notes (Zoom, Meet, Teams, Webex, FaceTime and more). EventKit is queried only on changes and every 6 h; otherwise the provider wakes at the next event boundary.
+  - Context resolution: an imminent meeting interrupts music, and music returns when the meeting leaves the notch (covered by tests with the real providers).
+  - New `schedule` content style; `MediaContent.trackID`; single-line capsule buttons.
+  - Apple Events entitlement and usage descriptions for Automation and Calendars.
+  - [ADR 0006](docs/decisions/0006-media-and-calendar-providers.md). 65 new unit tests (243 total).
 - Phase 2 — local utility features (no accounts needed):
   - Timers: several at once, presets (5/10/15/25/30 min, 1 hr) and a custom-duration window, pause / resume / +1 min / cancel / restart. Only the most relevant timer takes the notch. Priority rises as a timer nears zero (30 → 35 at one minute → 40 at ten seconds → 50 when finished, for 10 s), with an optional completion sound. Timers are saved, so they survive a relaunch.
   - Keep Awake: a supported IOKit power assertion for 30 min, 1 hr, 2 hr or until turned off, with a subtle Live Activity while on. Released when the session ends, when the feature is turned off and when the app quits. An active session is restored after relaunch.
