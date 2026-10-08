@@ -12,7 +12,12 @@ struct CompactActivityView: View {
     var body: some View {
         Color.clear
             .overlay(alignment: .leading) {
-                ActivityGlyph(presentation: activity.presentation, size: NotchLayout.compactGlyphSize)
+                if case .media(let media) = activity.presentation.content, media.artwork != nil {
+                    MediaArtwork(media: media, accent: activity.presentation.accent, cornerRadius: 5)
+                        .frame(width: NotchLayout.compactArtworkSize, height: NotchLayout.compactArtworkSize)
+                } else {
+                    ActivityGlyph(presentation: activity.presentation, size: NotchLayout.compactGlyphSize)
+                }
             }
             .overlay(alignment: .trailing) {
                 CompactAccessoryView(activity: activity, fontSize: NotchLayout.compactAccessoryFontSize)

@@ -183,3 +183,53 @@ struct SegmentedLevelBar: View {
         return Color(nsColor: blended)
     }
 }
+
+/// Album artwork, or the activity's symbol on a gradient when there is none.
+/// A new track cross-fades its artwork in.
+struct MediaArtwork: View {
+    let media: MediaContent
+    let accent: ActivityAccent
+    var cornerRadius: CGFloat = 10
+
+    var body: some View {
+        let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+        let identity = ArtworkIdentity(trackID: media.trackID, hasArtwork: media.artwork != nil)
+        ZStack {
+            // A different track (or its artwork arriving) is a new image, so it fades rather than snaps.
+            image
+                .id(identity)
+                .transition(.opacity)
+        }
+        .animation(.easeInOut(duration: 0.3), value: identity)
+        .clipShape(shape)
+        .accessibilityHidden(true)
+    }
+
+    @ViewBuilder
+    private var image: some View {
+        if let data = media.artwork, let image = NSImage(data: data) {
+            Image(nsImage: image)
+                .resizable()
+                .scaledToFill()
+        } else {
+            LinearGradient(
+                colors: [accent.color.opacity(0.95), .purple.opacity(0.8), .indigo],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            .overlay {
+                GeometryReader { proxy in
+                    Image(systemName: media.artworkSymbol)
+                        .font(.system(size: proxy.size.height * 0.38, weight: .semibold))
+                        .foregroundStyle(.white.opacity(0.9))
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+            }
+        }
+    }
+}
+
+private struct ArtworkIdentity: Hashable {
+    let trackID: String?
+    let hasArtwork: Bool
+}

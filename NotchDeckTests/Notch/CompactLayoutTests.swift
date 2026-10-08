@@ -7,6 +7,9 @@ struct CompactLayoutTests {
         let used = NotchLayout.compactContentInset + NotchLayout.compactAccessoryMaxWidth + NotchLayout.compactNotchGap
         #expect(used == NotchLayout.compactEarWidth)
         #expect(NotchLayout.compactGlyphSize <= NotchLayout.compactAccessoryMaxWidth)
+        #expect(NotchLayout.compactArtworkSize <= NotchLayout.compactAccessoryMaxWidth)
+        // Fits the shortest notch (32 pt on 14-inch MacBook Pros) with room to spare.
+        #expect(NotchLayout.compactArtworkSize <= 24)
     }
 
     @Test func liveActivityAddsBothEarsToTheNotch() {
@@ -37,6 +40,7 @@ struct NotchPrewarmerTests {
         case .metric: "metric"
         case .toggle: "toggle"
         case .actions: "actions"
+        case .schedule: "schedule"
         }
     }
 
@@ -54,11 +58,13 @@ struct NotchPrewarmerTests {
     @Test func samplesCoverEveryPresentationStyle() {
         let samples = NotchPrewarmer.sampleActivities()
         #expect(Set(samples.map { contentStyle($0.presentation.content) })
-            == ["standard", "media", "level", "metric", "toggle", "actions"])
+            == ["standard", "media", "level", "metric", "toggle", "actions", "schedule"])
         #expect(Set(samples.compactMap { accessoryStyle($0.presentation.compactAccessory) })
             == ["text", "symbol", "countdown", "progress"])
         #expect(samples.contains { $0.priority.requestsAttention && $0.presentation.statusText != nil })
         #expect(samples.contains { $0.presentation.options != nil })
+        // Artwork is drawn as an image, not a symbol, so it has its own first-render cost.
+        #expect(samples.contains { if case .media(let media) = $0.presentation.content { media.artwork != nil } else { false } })
     }
 
     @Test func samplesUseAPrivateSourceAndUniqueIDs() {
