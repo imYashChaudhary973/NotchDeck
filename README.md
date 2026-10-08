@@ -2,7 +2,7 @@
 
 A native macOS command center built around the MacBook notch.
 
-> **🚧 Currently being built.** The notch foundation (Phase 1) is in review: the notch surface, Activity Engine and state machine work, driven by simulated activities. None of the planned features below exist yet.
+> **🚧 Currently being built.** The notch foundation (Phase 1) is complete: the notch surface, Activity Engine and state machine work, driven by simulated activities. None of the planned features below exist yet.
 
 ## Overview
 
@@ -32,7 +32,7 @@ Details in [`ARCHITECTURE.md`](ARCHITECTURE.md).
 | Phase | Status |
 | --- | --- |
 | 0 — Repository bootstrap | Complete |
-| 1 — Notch foundation + Activity Engine + State Machine | In Review |
+| 1 — Notch foundation + Activity Engine + State Machine | Complete |
 | 2–6 | Not Started |
 
 ## Requirements

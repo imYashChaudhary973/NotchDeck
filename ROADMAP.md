@@ -9,7 +9,7 @@ The detailed brief for every phase — including its *Coding Agent Prompt* — i
 | Phase | Title | Status |
 | --- | --- | --- |
 | 0 | Repository bootstrap | **Complete** |
-| 1 | Notch foundation + Activity Engine + State Machine | **In Review** |
+| 1 | Notch foundation + Activity Engine + State Machine | **Complete** |
 | 2 | Timers + Keep Awake + System Metrics + Audio + Quick Actions | Not Started |
 | 3 | Music + Calendar + Context Resolution | Not Started |
 | 4 | File Shelf + Clipboard | Not Started |
@@ -44,17 +44,17 @@ The detailed brief for every phase — including its *Coding Agent Prompt* — i
 
 ## Phase 1 — Notch Foundation + Activity Engine + State Machine
 
-**Status:** In Review — implemented on `feature/phase-1-foundation`; complete once merged to `main`.
+**Status:** Complete — merged to `main`.
 
-Verification so far: 101 unit tests pass with no warnings; every notch state rendered off-screen and reviewed; panel geometry checked on a notched built-in display (220 × 38 pt at layer 27, flush with the top edge) and an external non-notched display (virtual notch); Idle → Live → Peek → Expanded → Collapse, Shelf, attention auto-peek, interruption and restoration exercised via the debug panel; idle CPU 0%, 0 wakeups. Full-screen behavior is defined and unit tested ([ADR 0001](docs/decisions/0001-notch-window-strategy.md)); drag descriptions are unit tested.
+Verification: 101 unit tests pass with no warnings; every notch state rendered off-screen and reviewed; panel geometry checked on notched built-in displays (220 × 38 pt, and 185 × 32 pt on a 14-inch M5 MacBook Pro; layer 27, flush with the top edge) and an external non-notched display (virtual notch); Idle → Live → Peek → Expanded → Collapse, Shelf, attention auto-peek, interruption and restoration exercised via the debug panel; idle CPU 0%, 0 wakeups. Full-screen behavior is defined and unit tested ([ADR 0001](docs/decisions/0001-notch-window-strategy.md)); drag descriptions are unit tested.
 
-Manual checks before merge (need a person at the Mac):
-- [ ] Full-screen app on the notched display: the notch stays visible in the black band.
-- [ ] Full-screen app on an external display with `Display: Primary display`: the virtual notch hides; *Claude Waiting* in the debug panel still peeks.
-- [ ] Switching Spaces: the notch stays put on every Space.
-- [ ] Dragging a real Finder file over the notch opens the Shelf; releasing returns the file to Finder.
-- [ ] Connecting / disconnecting an external display and closing the lid move the notch to the right display.
-- [ ] Launch at Login from a copy in `/Applications` (toggle in Settings, log out and back in).
+Manual checks (run 2026-10-08 with scripted input on a 14-inch M5 MacBook Pro, built-in display only). Items 2, 5 and 6 were verified only partly; the remaining parts are listed so they can be confirmed on real hardware:
+- [x] Full-screen app on the notched display: the notch stays visible in the black band. Hover, click and outside-click dismissal also work over the full-screen app.
+- [ ] Full-screen app on an external display with `Display: Primary display`: the virtual notch hides; *Claude Waiting* in the debug panel still peeks. *Partly verified on a simulated (virtual) display: the virtual notch moves to the primary display and hides under a full-screen window. Not yet verified: the attention peek over the covered display.*
+- [x] Switching Spaces: the notch stays put on every Space (desktops and full-screen Spaces).
+- [x] Dragging a real Finder file over the notch opens the Shelf; releasing returns the file to Finder.
+- [ ] Connecting / disconnecting an external display and closing the lid move the notch to the right display. *Connect, disconnect and primary-display changes verified on a simulated display; closing the lid was approximated by mirroring the built-in display. Not yet verified: a real external display and a real lid close.*
+- [ ] Launch at Login from a copy in `/Applications` (toggle in Settings, log out and back in). *The toggle registers the `/Applications` copy (Background Task Management: enabled, allowed). Not yet verified: relaunch after logging out and back in.*
 
 **Goals**
 - Establish the notch surface and the core pipeline every later feature depends on.
@@ -141,6 +141,9 @@ Manual checks before merge (need a person at the Mac):
 
 **Dependencies**
 - Phase 1 Shelf state.
+
+**Known constraint**
+- macOS opens Mission Control's Spaces bar when a drag rests at the top edge of the screen for about a second (observed during Phase 1 checks, with or without NotchDeck). The Shelf's drop targets must be easy to reach before that happens.
 
 **Completion Criteria**
 - Clipboard contents never logged or transmitted.
