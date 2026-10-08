@@ -2,7 +2,7 @@
 
 > The phase-by-phase brief behind this architecture is [`docs/development/engineering-plan.md`](docs/development/engineering-plan.md).
 
-> **Status: Phase 1 implemented.** The notch foundation, Activity Engine and state machine exist and are unit tested. No real integrations exist yet. Only the developer-only debug provider publishes activities. Sections marked *(planned)* describe later phases.
+> **Status: Phase 2 implemented.** The notch foundation, Activity Engine and state machine (Phase 1) and the local utility providers — Timers, Keep Awake, System Metrics, Audio, Quick Actions (Phase 2) — exist and are unit tested. No external integrations exist yet. Sections marked *(planned)* describe later phases.
 
 ## Core Principle
 
@@ -44,6 +44,7 @@ ActivityProvider ──publish/withdraw──▶ ActivityPublisher (scoped to th
 2. Higher priority wins.
 3. At equal priority, the currently shown activity keeps the notch (no flapping).
 4. Otherwise the most recently published activity wins.
+5. Only `.notch` activities can be primary. `.commandCenter` activities (controls and background context) are always queued, so they never keep the notch from being idle ([ADR 0005](docs/decisions/0005-local-utility-providers.md)).
 
 Interrupted activities stay in the store, so **restoration is automatic**. When a meeting (40) that interrupted music (20) expires, music is primary again.
 
@@ -74,7 +75,7 @@ The **resting state** is `liveActivity` when there is a primary activity, otherw
 
 `CommandCenterLayout` (pure, unit tested) derives the expanded layout from the resolution:
 
-- **Tabs:** *Overview* plus one tab per `ActivityKind` that has live activities (fixed order: music, meeting, timer, transfers, agents, clipboard, system). A purple dot marks tabs with an activity that requests attention. Tabs are hidden when only Overview exists.
+- **Tabs:** *Overview* plus one tab per `ActivityKind` that has live activities (fixed order: music, meeting, timer, transfers, agents, clipboard, system, quick actions). A purple dot marks tabs with an activity that requests attention. Tabs are hidden when only Overview exists.
 - **Featured card:** the first activity of the selected section — in Overview, the engine's primary activity, so priority still decides prominence.
 - **Widget column:** the next four activities, then "+N more".
 
@@ -88,9 +89,36 @@ Providers choose how their activity is drawn in detail through `ActivityPresenta
 | `.media(MediaContent)` | Now Playing card: artwork, transport buttons, playback progress (ticks once a second only while visible and playing) | music (Phase 3) |
 | `.level(LevelContent)` | Segmented level bar (HUD) | volume (Phase 2) |
 | `.metric(MetricContent)` | Small bar with value | CPU, memory (Phase 2) |
-| `.toggle(ToggleContent)` | Switch | Keep Awake (Phase 2) |
+| `.toggle(ToggleContent)` | Switch | Keep Awake |
+| `.actions(ActionsContent)` | Tile grid on the featured card, button row in the widget column | Quick Actions, timer presets |
 
-Controls (transport buttons, switches) invoke action IDs that the engine routes back to the owning provider (`ActivityEngine.perform(actionID:on:)`). `statusText` is a short status for Peek (e.g. "Needs approval"); `revealsOnUpdate` makes HUD-style activities briefly reveal the notch on every update (`NotchController.shouldReveal`).
+`.level` can be interactive: with `adjustActionID` the bar is draggable, and with `muteActionID` it gets a mute button. `ActivityPresentation.options` adds a selectable list to the featured card (output devices).
+
+Controls (transport buttons, switches, tiles, options) invoke action IDs that the engine routes back to the owning provider (`ActivityEngine.perform(actionID:on:)`). Continuous controls send a `0…1` value through `ActivityEngine.adjust(actionID:to:on:)`. `statusText` is a short status for Peek (e.g. "Needs approval"); `revealsOnUpdate` makes HUD-style activities briefly reveal the notch on every update (`NotchController.shouldReveal`).
+
+## Placement, Display Feedback and Input Routing
+
+Phase 2 added three engine capabilities ([ADR 0005](docs/decisions/0005-local-utility-providers.md)):
+
+- **Placement.** `NotchActivity.placement` is `.notch` (default) or `.commandCenter`. Command-center activities are listed only in the expanded command center. For them, priority only orders the list.
+- **Display feedback.** `NotchController` reports the activities on screen (`NotchDisplay.displayedKeys`) to `ActivityEngine.updateDisplayedActivities(_:)`. Providers hear about their own through `displayedActivitiesChanged(_:)` and can pause work nobody can see.
+- **Input routing.** `adjust(actionID:to:on:)` delivers continuous values. `handleNotchScroll(_:)` delivers scrolls over the notch in normalized steps (`NotchScroll`); the first provider that returns `true` handles the scroll.
+
+## Providers
+
+| Provider | Source | Activities | System access (public APIs) | Wakes up |
+| --- | --- | --- | --- | --- |
+| `TimerProvider` | `timer` | One per timer; only the most relevant (finished › soonest running › paused) is `.notch`. Plus a `.commandCenter` "New Timer" presets row. | — (state in `UserDefaults`) | Only at the next phase change: 1 min left, 10 s left, zero, end of alert |
+| `KeepAwakeProvider` | `keepAwake` | Keep Awake switch: `.commandCenter` while off, ambient `.notch` Live Activity while on | IOKit `IOPMAssertionCreateWithProperties` (`PreventUserIdleDisplaySleep`, with a system timeout as a safety net) | At the end of a timed session |
+| `SystemMetricsProvider` | `systemMetrics` | CPU, memory (colored by memory pressure), battery (`.commandCenter`). Brief "Charging" peek when power connects. | Mach `host_statistics(64)`, `sysctl kern.memorystatus_vm_pressure_level`, `DispatchSource` memory pressure, IOKit power-source notifications | Every 2 s while CPU/memory are on screen; otherwise only on battery and pressure events |
+| `AudioProvider` | `audio` | Volume level (draggable, mute, output device options), `.commandCenter`. A `.notch` HUD for 1.5 s after a scroll over the notch (opt-in setting). | CoreAudio HAL: default output device, virtual main volume, mute, device list, property listeners | Only on CoreAudio change notifications |
+| `QuickActionsProvider` | `quickActions` | Quick Actions grid (`.commandCenter`) | `NSWorkspace` (Downloads, Applications, Activity Monitor, Screenshot app, Screen Saver) | Never |
+
+Timer priorities: running 30, last minute 35, last 10 s 40, finished 50 (for 10 s, then removed), paused 20. Running timers store their end date, so they stay accurate across sleep and relaunch; the countdown is drawn by `Text(timerInterval:)`.
+
+Quick actions implement the `QuickAction` protocol (`id`, `title`, `symbolName`, `availability`, `isActive`, `perform()`), and only `.available` ones are shown. **Lock Screen** is `.unavailable`: macOS has no public API for it. **Screen Saver** is the safe fallback; it locks the Mac when "Require password after screen saver begins" is on. **Screenshot** opens the system Screenshot app, so NotchDeck needs no Screen Recording permission. Listing expensive processes ("where permitted") is not implemented.
+
+Each feature can be turned off in Settings ▸ Features. `AppEnvironment` registers a provider only while its feature is on. Turning a feature off unregisters it, cancelling timers or releasing Keep Awake. Quitting keeps saved timers and an active Keep Awake session for the next launch.
 
 ## Adding a Feature: Registering an Activity Provider
 
@@ -130,14 +158,16 @@ Controls (transport buttons, switches) invoke action IDs that the engine routes 
     }
     ```
 
-2. Register it in `AppEnvironment.start()`: `engine.register(TimerProvider())`.
+2. Create it in `AppEnvironment` and register it in `start()`. Phase 2 features are listed in `Feature` (`AppSettings`) and registered only while enabled.
 3. To change urgency, republish the same `id` with a new `priority`. Withdraw with `publisher.withdraw(id:)`, or set `expiresAt` and let the engine remove it.
 4. Add unit tests for the provider's state logic, and test that it publishes the activities you expect (see `ActivityEngineTests` for a recording provider).
 
 Provider rules:
 
 - Never import or reference `NotchController`, `NotchPanel` or notch views.
-- Prefer system notifications and observers. If you must poll, poll only while your activity is live, with timer tolerance.
+- Prefer system notifications and observers. If you must poll, poll only while your activity is on screen (`displayedActivitiesChanged`), with timer tolerance.
+- Use `placement: .commandCenter` for controls and background context that should never occupy the notch on their own.
+- Put system access behind a small protocol so the provider's logic can be tested with a fake.
 - Use `.countdown(to:)` for ticking time. The system renders it with no app-side timer.
 - Never put sensitive content (clipboard text, file contents) in `title` or `subtitle` without a product reason, and never log it.
 
@@ -154,7 +184,7 @@ Provider rules:
 60  Critical             Rare; must be seen immediately. Auto-peeks.
 ```
 
-`ActivityPriority` is `Int`-backed, so intermediate values (e.g. 35) are allowed. Decay and user-preference adjustments (profiles) are *(planned)* for Phase 6.
+`ActivityPriority` is `Int`-backed, so intermediate values (e.g. 35) are allowed. For `.commandCenter` activities, priority only orders the command center list. Decay and user-preference adjustments (profiles) are *(planned)* for Phase 6.
 
 ## Domains
 
@@ -162,9 +192,9 @@ Provider rules:
 App            Entry point (MenuBarExtra), AppDelegate, AppEnvironment (composition root), auxiliary windows.
 Core           Activities (model, store, resolver, engine, provider protocol) and Notch (geometry, layout,
                state machine, panel, hosting view, controller, view model).
-Features       Activity providers. Phase 1: DebugActivities (Debug builds only).
+Features       Activity providers: Timers, KeepAwake, SystemMetrics, Audio, QuickActions; DebugActivities (Debug builds only).
 Integrations   (planned) Bridges to external tools/apps (Apple Music, Spotify, Claude Code, Codex).
-Services       Shared system services. Phase 1: LaunchAtLoginService.
+Services       Shared system services: LaunchAtLoginService.
 UI             SwiftUI views per state (Compact, Peek, Expanded, Shelf) and Components.
 Settings       AppSettings (UserDefaults-backed, Observable) and SettingsView.
 ```
@@ -178,9 +208,14 @@ NotchDeck/
 │   ├── Activities/          NotchActivity, ActivityPriority, ActivityStore, ActivityResolver,
 │   │                        ActivityEngine, ActivityProvider (+ ActivityPublisher)
 │   └── Notch/               NotchGeometry (+ DisplayPreference, NotchScreenSelector), NotchLayout,
-│                            FullScreenCoverage (+ NotchVisibility), NotchStateMachine, NotchPanel,
-│                            NotchHostingView, NotchViewModel, NotchController
+│                            FullScreenCoverage (+ NotchVisibility), NotchDisplay (+ NotchScroll),
+│                            NotchStateMachine, NotchPanel, NotchHostingView, NotchViewModel, NotchController
 ├── Features/
+│   ├── Timers/              CountdownTimer (+ TimerCollection, TimerRules), TimerProvider, CustomTimerView
+│   ├── KeepAwake/           KeepAwakeProvider (+ KeepAwakeSession), PowerAssertion
+│   ├── SystemMetrics/       SystemMetrics (values + protocols), SystemStatistics (Mach/IOKit), SystemMetricsProvider
+│   ├── Audio/               AudioOutput (model + protocol), CoreAudioOutput, AudioProvider
+│   ├── QuickActions/        QuickAction (+ built-in actions), QuickActionsProvider
 │   └── DebugActivities/     DebugActivityProvider, DebugPanelView (#if DEBUG)
 ├── Services/                LaunchAtLoginService
 ├── Settings/                AppSettings, SettingsView
@@ -190,8 +225,9 @@ NotchDeck/
     ├── Compact/  Peek/  Expanded/  Shelf/
     └── Components/          NotchShape, activity glyph/accessory/progress components
 NotchDeckTests/
-├── Activities/              store, resolver, engine tests
-├── Notch/                   state machine, geometry, layout, compact layout, full-screen visibility, drag description, warm-up tests
+├── Activities/              store, resolver, engine, placement and input-routing tests
+├── Features/                timer, keep awake, system metrics, audio and quick actions tests (with fakes)
+├── Notch/                   state machine, geometry, layout, compact layout, full-screen visibility, drag description, display, warm-up tests
 └── Settings/                settings persistence tests
 ```
 
@@ -214,5 +250,6 @@ Significant decisions are recorded in [`docs/decisions/`](docs/decisions/):
 - [0002 — Activity engine and notch state machine](docs/decisions/0002-activity-engine.md)
 - [0003 — App runtime configuration](docs/decisions/0003-app-runtime-configuration.md)
 - [0004 — Command center presentation](docs/decisions/0004-command-center-presentation.md)
+- [0005 — Local utility providers](docs/decisions/0005-local-utility-providers.md)
 
 Write an ADR when a decision is hard to reverse, affects multiple domains, or chooses between real alternatives. See [`docs/decisions/README.md`](docs/decisions/README.md) for the template.

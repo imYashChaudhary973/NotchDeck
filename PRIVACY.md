@@ -27,6 +27,16 @@ All of it is treated as private by default.
 7. **No unnecessary telemetry.** NotchDeck does not collect analytics or usage tracking it doesn't need. If diagnostic reporting is ever proposed, it must be opt-in and documented here first.
 8. **Careful logging.** Logs must not contain clipboard contents, calendar details, file contents, or sensitive filenames/paths. Use `os.Logger` privacy annotations (`privacy: .private`) for any dynamic value that could be sensitive.
 
+## What NotchDeck Stores Today
+
+| Data | Where | Why |
+| --- | --- | --- |
+| Settings | `UserDefaults` | Preferences |
+| Timers (duration, end time, the optional name you type) | `UserDefaults` (`timers.saved`) | Running timers survive a relaunch. Removed when they finish or are cancelled, and when Timers is turned off. |
+| Keep Awake session (on/off, end time) | `UserDefaults` (`keepAwake.session`) | An active session survives a relaunch |
+
+CPU, memory, battery and audio-device information is read on demand, shown in the notch and never stored, logged or sent anywhere.
+
 ## For Contributors
 
 Any change that reads a new category of user data, adds a permission, stores user data, or communicates off-device must update this document in the same change.
