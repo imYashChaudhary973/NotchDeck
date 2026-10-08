@@ -2,7 +2,14 @@
 
 This directory holds Architecture Decision Records (ADRs): short documents capturing a significant decision, its context and its consequences.
 
-No ADRs have been written yet. They are created when a decision is actually made — never in advance.
+ADRs are created when a decision is actually made — never in advance.
+
+| ADR | Title | Status |
+| --- | --- | --- |
+| [0001](0001-notch-window-strategy.md) | Notch window strategy | Accepted |
+| [0002](0002-activity-engine.md) | Activity Engine and notch state machine | Accepted |
+| [0003](0003-app-runtime-configuration.md) | App runtime configuration | Accepted (sandbox to revisit) |
+| [0004](0004-command-center-presentation.md) | Command center presentation | Accepted |
 
 ## When to write one
 
