@@ -84,7 +84,20 @@ enum NotchPrewarmer {
             )),
             sample("level", .system, .active, ActivityPresentation(
                 symbolName: "speaker.wave.2.fill", accent: .orange, compactAccessory: .text("50%"),
-                content: .level(LevelContent(value: 0.5, valueText: "50%")), revealsOnUpdate: true
+                content: .level(LevelContent(value: 0.5, valueText: "50%", adjustActionID: "a", muteActionID: "m")),
+                revealsOnUpdate: true,
+                options: ActivityOptions(title: "Output", options: [
+                    .init(actionID: "o1", title: "Speakers", symbolName: "laptopcomputer", isSelected: true),
+                    .init(actionID: "o2", title: "Headphones", symbolName: "headphones"),
+                ])
+            )),
+            sample("actions", .generic, .ambient, ActivityPresentation(
+                symbolName: "bolt.fill", accent: .yellow,
+                content: .actions(ActionsContent(items: [
+                    ActionItem(actionID: "a1", title: "Timer", symbolName: "timer"),
+                    ActionItem(actionID: "a2", title: "Keep Awake", symbolName: "cup.and.saucer.fill", isActive: true),
+                    ActionItem(actionID: "a3", title: "Downloads", symbolName: "arrow.down.circle"),
+                ]))
             )),
             sample("metric", .system, .ambient, ActivityPresentation(
                 symbolName: "cpu", accent: .green, content: .metric(MetricContent(value: 0.3, valueText: "30%"))

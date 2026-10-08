@@ -20,6 +20,10 @@ final class ActivityEngine {
     @ObservationIgnored private var store = ActivityStore()
     @ObservationIgnored private let resolver = ActivityResolver()
     @ObservationIgnored private var providers: [ActivitySource: any ActivityProvider] = [:]
+    /// Registration order, so scroll routing is deterministic.
+    @ObservationIgnored private var providerOrder: [ActivitySource] = []
+    /// Activities currently on screen, as last reported by the notch layer.
+    @ObservationIgnored private(set) var displayedKeys: Set<ActivityKey> = []
     @ObservationIgnored private let now: () -> Date
     @ObservationIgnored private let schedulesExpiry: Bool
     @ObservationIgnored private var expiryTask: Task<Void, Never>?
@@ -35,7 +39,11 @@ final class ActivityEngine {
     // MARK: Providers
 
     var registeredSources: [ActivitySource] {
-        Array(providers.keys)
+        providerOrder
+    }
+
+    func isRegistered(_ source: ActivitySource) -> Bool {
+        providers[source] != nil
     }
 
     /// Registers a provider and starts it. A provider already registered for the same source is replaced.
@@ -44,12 +52,18 @@ final class ActivityEngine {
             unregister(provider.source)
         }
         providers[provider.source] = provider
+        providerOrder.append(provider.source)
         provider.start(publisher: ActivityPublisher(source: provider.source, engine: self))
+        let displayed = displayedIDs(for: provider.source, in: displayedKeys)
+        if !displayed.isEmpty {
+            provider.displayedActivitiesChanged(displayed)
+        }
     }
 
     /// Stops a provider and withdraws all of its activities.
     func unregister(_ source: ActivitySource) {
         guard let provider = providers.removeValue(forKey: source) else { return }
+        providerOrder.removeAll { $0 == source }
         provider.stop()
         withdrawAll(from: source)
     }
@@ -83,6 +97,41 @@ final class ActivityEngine {
     /// Routes a control interaction (transport button, toggle…) to the provider that owns the activity.
     func perform(actionID: ActivityAction.ID, on key: ActivityKey) {
         providers[key.source]?.perform(actionID: actionID, on: key.id)
+    }
+
+    /// Routes a continuous control value (e.g. a dragged level bar) to the provider that owns the activity.
+    func adjust(actionID: ActivityAction.ID, to value: Double, on key: ActivityKey) {
+        providers[key.source]?.adjust(actionID: actionID, to: min(max(value, 0), 1), on: key.id)
+    }
+
+    /// Offers a scroll over the notch to providers in registration order. Returns whether one handled it.
+    @discardableResult
+    func routeNotchScroll(_ delta: Double) -> Bool {
+        for source in providerOrder {
+            if providers[source]?.handleNotchScroll(delta) == true { return true }
+        }
+        return false
+    }
+
+    /// Records which activities are on screen and tells each provider whose share changed.
+    /// Reported by the notch layer; providers use it to avoid work nobody can see.
+    func updateDisplayedActivities(_ keys: Set<ActivityKey>) {
+        guard keys != displayedKeys else { return }
+        let old = displayedKeys
+        // Store first: a provider may publish in response, which can report displayed keys again.
+        displayedKeys = keys
+        let sources = Set(old.map(\.source)).union(keys.map(\.source))
+        for source in providerOrder where sources.contains(source) {
+            let before = displayedIDs(for: source, in: old)
+            let after = displayedIDs(for: source, in: keys)
+            if before != after {
+                providers[source]?.displayedActivitiesChanged(after)
+            }
+        }
+    }
+
+    private func displayedIDs(for source: ActivitySource, in keys: Set<ActivityKey>) -> Set<NotchActivity.ID> {
+        Set(keys.filter { $0.source == source }.map(\.id))
     }
 
     /// Removes expired activities and re-resolves. Called automatically when expiry is scheduled.

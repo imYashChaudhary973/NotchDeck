@@ -16,6 +16,13 @@ extension ActivityAccent {
     }
 }
 
+extension ActivityAccent {
+    /// Neutral reads as white on the black surface; other accents use their color.
+    var tileTint: Color {
+        self == .neutral ? .white : color
+    }
+}
+
 extension View {
     /// Layered SF Symbols (e.g. `waveform`) lose their foreground color and render white when drawn
     /// inside a clip or mask, as the notch surface is. Flattening them first keeps the tint.

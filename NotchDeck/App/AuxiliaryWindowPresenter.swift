@@ -24,4 +24,8 @@ final class AuxiliaryWindowPresenter {
         NSApp.activate()
         window.makeKeyAndOrderFront(nil)
     }
+
+    func close(id: String) {
+        windows[id]?.close()
+    }
 }

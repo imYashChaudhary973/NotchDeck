@@ -23,6 +23,36 @@ private struct MenuBarContent: View {
     let environment: AppEnvironment
 
     var body: some View {
+        if environment.settings.timersEnabled {
+            Menu("Start Timer") {
+                ForEach(TimerRules.presets, id: \.self) { duration in
+                    Button(TimerRules.durationLabel(duration)) {
+                        environment.timers.startTimer(duration: duration)
+                    }
+                }
+                Divider()
+                Button("Custom…") {
+                    environment.showCustomTimer()
+                }
+            }
+        }
+
+        if environment.settings.keepAwakeEnabled {
+            Menu("Keep Awake") {
+                ForEach(KeepAwakeDuration.allCases, id: \.self) { duration in
+                    Button(duration.title) {
+                        environment.keepAwake.turnOn(for: duration)
+                    }
+                }
+                Divider()
+                Button("Turn Off") {
+                    environment.keepAwake.turnOff()
+                }
+            }
+        }
+
+        Divider()
+
         Button("Settings…") {
             environment.showSettings()
         }

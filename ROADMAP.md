@@ -10,7 +10,7 @@ The detailed brief for every phase — including its *Coding Agent Prompt* — i
 | --- | --- | --- |
 | 0 | Repository bootstrap | **Complete** |
 | 1 | Notch foundation + Activity Engine + State Machine | **Complete** |
-| 2 | Timers + Keep Awake + System Metrics + Audio + Quick Actions | Not Started |
+| 2 | Timers + Keep Awake + System Metrics + Audio + Quick Actions | **Complete** |
 | 3 | Music + Calendar + Context Resolution | Not Started |
 | 4 | File Shelf + Clipboard | Not Started |
 | 5 | Claude Code + Codex + generic developer activity protocol | Not Started |
@@ -83,7 +83,16 @@ Manual checks (run 2026-10-08 with scripted input on a 14-inch M5 MacBook Pro, b
 
 ## Phase 2 — Timers + Keep Awake + System Metrics + Audio + Quick Actions
 
-**Status:** Not Started
+**Status:** Complete — merged to `main`.
+
+Verification (2026-10-08, 14-inch M5 MacBook Pro): 178 unit tests pass with no warnings (Debug and Release builds). In the running app with scripted input: starting a timer from Quick Actions shows the countdown Live Activity; Keep Awake holds a `PreventUserIdleDisplaySleep` assertion (`pmset -g assertions`), releases it on quit and restores it on relaunch; a running timer is restored after relaunch; the volume bar sets the system volume, and changes made elsewhere show up; scrolling over the notch (setting on) changes the volume and shows the HUD, which then returns the notch to the timer. Idle with every feature on: 0.0% CPU, 0 wake-ups. A visible countdown costs about 1% CPU; the open command center with live sampling about 1.5% ([ADR 0005](docs/decisions/0005-local-utility-providers.md)).
+
+Still to check on real hardware:
+- [ ] A timer reaching zero: the attention peek and the sound (covered by unit tests, not yet watched live).
+- [ ] Output device switching with a second device (Bluetooth headphones, AirPlay or a display).
+- [ ] The Charging peek when a charger is plugged in.
+- [ ] Scroll-to-volume with a real trackpad and mouse wheel (scripted line scrolls verified).
+- [ ] Each Settings ▸ Features toggle on and off while the app runs.
 
 **Goals**
 - Ship the first real activity providers using only local system APIs.

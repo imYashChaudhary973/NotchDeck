@@ -71,6 +71,8 @@ Useful launch arguments (they override stored settings for that run):
 | --- | --- |
 | `-NotchDeckShowDebugPanel YES` | Open the debug panel at launch (Debug builds) |
 | `-notch.displayPreference primary` | Put the notch on the primary display (test the virtual notch on external monitors) |
+| `-audio.scrollAdjustsVolume YES` | Turn on scroll-over-the-notch volume for that run |
+| `-features.<timers\|keepAwake\|systemMetrics\|audio\|quickActions>.enabled NO` | Turn a feature off for that run |
 
 ## Testing
 
@@ -110,6 +112,10 @@ The notch itself needs **no** permissions (no Accessibility, Input Monitoring or
 
 | Feature | Likely permission / mechanism |
 | --- | --- |
+| Keep Awake | IOKit power assertion — no permission |
+| System metrics | Mach host statistics, `sysctl`, IOKit power sources — no permission |
+| Audio | CoreAudio HAL — no permission (output only; the microphone is never used) |
+| Quick Actions | `NSWorkspace` opens folders and apps — no permission. Screenshot opens the system Screenshot app instead of capturing, so no Screen Recording permission. |
 | Calendar | EventKit calendar access |
 | Login item | ServiceManagement (`SMAppService`) — implemented; may need approval in System Settings ▸ General ▸ Login Items, and is unreliable for builds run from DerivedData |
 | Clipboard | `NSPasteboard` (no TCC prompt, but privacy-sensitive) |
@@ -119,6 +125,7 @@ Usage-description strings (`NS…UsageDescription`) are added alongside the feat
 
 ## Troubleshooting
 
+- **`xcodebuild` "requires Xcode, but active developer directory … is a command line tools instance":** prefix commands with `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer`, or run `sudo xcode-select -s /Applications/Xcode.app`.
 - **"The project is damaged" / cannot open:** you are on an Xcode older than 16. Upgrade Xcode.
 - **Signing errors when building:** make sure no `DEVELOPMENT_TEAM` mismatch was introduced; the shared project builds with "Sign to Run Locally".
 - **Stale build behavior:** delete DerivedData for the project (`~/Library/Developer/Xcode/DerivedData/NotchDeck-*`, or `build/` if you used `-derivedDataPath build/DerivedData`).

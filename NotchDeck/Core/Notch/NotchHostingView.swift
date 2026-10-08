@@ -14,6 +14,8 @@ final class NotchHostingView<Content: View>: NSHostingView<Content> {
     var onDragUpdated: ((CGPoint, String) -> Void)?
     var onDragExited: (() -> Void)?
     var onDrop: (() -> Void)?
+    /// Called when the user scrolls over the visible surface, in normalized steps (positive = up).
+    var onScroll: ((Double) -> Void)?
 
     /// Size of the visible notch surface. Updating it rebuilds the hover tracking area.
     var interactiveSize: CGSize = .zero {
@@ -113,6 +115,23 @@ final class NotchHostingView<Content: View>: NSHostingView<Content> {
             return
         }
         super.mouseDown(with: event)
+    }
+
+    // MARK: Scrolling
+
+    override func scrollWheel(with event: NSEvent) {
+        let location = convert(event.locationInWindow, from: nil)
+        // Momentum after the fingers lift would overshoot; only direct input counts.
+        guard interactiveRect.contains(location), event.momentumPhase.isEmpty, let onScroll else {
+            super.scrollWheel(with: event)
+            return
+        }
+        let steps = NotchScroll.steps(
+            deltaY: event.scrollingDeltaY,
+            isPrecise: event.hasPreciseScrollingDeltas,
+            isInverted: event.isDirectionInvertedFromDevice
+        )
+        if steps != 0 { onScroll(steps) }
     }
 
     // MARK: Drag and drop

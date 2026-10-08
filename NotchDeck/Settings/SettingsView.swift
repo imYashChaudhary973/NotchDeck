@@ -42,6 +42,24 @@ struct SettingsView: View {
                     .foregroundStyle(.secondary)
             }
 
+            Section {
+                ForEach(Feature.allCases, id: \.self) { feature in
+                    Toggle(feature.title, isOn: featureBinding(feature))
+                }
+            } header: {
+                Text("Features")
+            } footer: {
+                Text("A feature that is off shows nothing and does no work. Turning off Timers cancels running timers; turning off Keep Awake lets the Mac sleep again.")
+                    .foregroundStyle(.secondary)
+            }
+
+            Section("Feature Options") {
+                Toggle("Play a sound when a timer finishes", isOn: $settings.timerPlaysSound)
+                    .disabled(!settings.timersEnabled)
+                Toggle("Scroll over the notch to change the volume", isOn: $settings.scrollAdjustsVolume)
+                    .disabled(!settings.audioEnabled)
+            }
+
             Section("About") {
                 LabeledContent("Version", value: Bundle.main.versionDescription)
             }
@@ -49,6 +67,18 @@ struct SettingsView: View {
         .formStyle(.grouped)
         .frame(width: 460)
         .fixedSize(horizontal: false, vertical: true)
+    }
+}
+
+private extension SettingsView {
+    func featureBinding(_ feature: Feature) -> Binding<Bool> {
+        switch feature {
+        case .timers: $settings.timersEnabled
+        case .keepAwake: $settings.keepAwakeEnabled
+        case .systemMetrics: $settings.systemMetricsEnabled
+        case .audio: $settings.audioEnabled
+        case .quickActions: $settings.quickActionsEnabled
+        }
     }
 }
 

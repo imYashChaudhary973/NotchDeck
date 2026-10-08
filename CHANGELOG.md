@@ -8,6 +8,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
+- Phase 2 — local utility features (no accounts needed):
+  - Timers: several at once, presets (5/10/15/25/30 min, 1 hr) and a custom-duration window, pause / resume / +1 min / cancel / restart. Only the most relevant timer takes the notch. Priority rises as a timer nears zero (30 → 35 at one minute → 40 at ten seconds → 50 when finished, for 10 s), with an optional completion sound. Timers are saved, so they survive a relaunch.
+  - Keep Awake: a supported IOKit power assertion for 30 min, 1 hr, 2 hr or until turned off, with a subtle Live Activity while on. Released when the session ends, when the feature is turned off and when the app quits. An active session is restored after relaunch.
+  - System metrics: CPU, memory (colored by memory pressure) and battery in the command center, plus a brief Charging peek. CPU and memory are sampled every 2 s, and only while visible. Battery and memory pressure are event-driven.
+  - Audio: output volume (draggable level bar), mute, and output-device selection through CoreAudio. Optional scroll-over-the-notch volume with a HUD.
+  - Quick Actions: an extensible `QuickAction` protocol and a grid with Timer, Keep Awake, Downloads, Applications, Activity Monitor, Screenshot and Screen Saver. Lock Screen is unavailable because macOS has no public API for it.
+  - Settings ▸ Features: turn each feature off individually. Feature options: timer sound, scroll to change volume. Menu bar: Start Timer and Keep Awake submenus.
+  - Engine: `.commandCenter` activity placement, on-screen activity feedback to providers, continuous-value and scroll input routing, and the `actions` content style and options list ([ADR 0005](docs/decisions/0005-local-utility-providers.md)).
+  - 77 new unit tests (178 total).
 - Phase 1 — notch foundation:
   - Menu-bar (accessory) app lifecycle with Settings and Quit; Launch at Login via `SMAppService`.
   - Notch geometry from public `NSScreen` APIs, virtual notch on displays without one, display selection (Automatic / Primary) with live screen-change handling.

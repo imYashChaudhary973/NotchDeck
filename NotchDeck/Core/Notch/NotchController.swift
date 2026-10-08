@@ -57,6 +57,7 @@ final class NotchController {
         self.model = NotchViewModel(engine: engine)
         model.onClick = { [weak self] in self?.send(.clicked) }
         model.onLayoutChange = { [weak self] in self?.updatePanelFrame(animated: true) }
+        model.onSelectedSectionChange = { [weak self] in self?.reportDisplayedActivities() }
     }
 
     /// The current presentation state (read-only outside the controller).
@@ -82,6 +83,7 @@ final class NotchController {
         }
         hostingView.onDragExited = { [weak self] in self?.send(.dragExited) }
         hostingView.onDrop = { [weak self] in self?.send(.dropCompleted) }
+        hostingView.onScroll = { [weak self] steps in self?.engine.routeNotchScroll(steps) }
         panel.contentView = hostingView
         self.panel = panel
         self.hostingView = hostingView
@@ -132,6 +134,7 @@ final class NotchController {
         workspaceObservers.forEach(NSWorkspace.shared.notificationCenter.removeObserver)
         workspaceObservers.removeAll()
         removeOutsideClickMonitors()
+        engine.updateDisplayedActivities([])
         [shrinkTask, hideTask, fullScreenRecheckTask, prewarmTask, attentionPeekTask, pointerExitTask].forEach { $0?.cancel() }
         panel?.orderOut(nil)
         panel = nil
@@ -148,6 +151,7 @@ final class NotchController {
 
     private func resolutionChanged(from old: ActivityResolution, to new: ActivityResolution) {
         send(.activityAvailabilityChanged(hasActivity: new.primary != nil))
+        reportDisplayedActivities()
 
         if Self.shouldReveal(from: old, to: new) {
             send(.attentionRequested)
@@ -198,6 +202,17 @@ final class NotchController {
         updatePanelVisibility()
         updateOutsideClickMonitoring()
         updateAttentionPeekTimeout()
+        reportDisplayedActivities()
+    }
+
+    /// Tells the engine which activities are on screen, so providers can pause invisible work.
+    private func reportDisplayedActivities() {
+        guard isStarted else { return }
+        engine.updateDisplayedActivities(NotchDisplay.displayedKeys(
+            state: machine.state,
+            resolution: engine.resolution,
+            selectedSection: model.selectedSection
+        ))
     }
 
     private var targetSize: CGSize? {
