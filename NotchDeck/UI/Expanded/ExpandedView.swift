@@ -133,10 +133,149 @@ private struct FeaturedCard: View {
         case .level(let level):
             VStack(alignment: .leading, spacing: 10) {
                 FeaturedHeader(activity: activity, trailingText: level.valueText)
-                SegmentedLevelBar(value: level.value, tint: activity.presentation.accent.color)
+                LevelControl(activity: activity, level: level, model: model)
+                OptionsList(activity: activity, model: model)
+            }
+        case .actions(let actions):
+            VStack(alignment: .leading, spacing: 10) {
+                FeaturedHeader(activity: activity)
+                ActionGrid(activity: activity, items: actions.items, model: model)
             }
         default:
             StandardFeatured(activity: activity, model: model)
+        }
+    }
+}
+
+/// A level bar with an optional mute button. Draggable when the provider accepts adjustments.
+private struct LevelControl: View {
+    let activity: NotchActivity
+    let level: LevelContent
+    let model: NotchViewModel
+
+    var body: some View {
+        HStack(spacing: 10) {
+            if let muteActionID = level.muteActionID {
+                Button { model.perform(actionID: muteActionID, on: activity) } label: {
+                    Image(systemName: level.isMuted ? "speaker.slash.fill" : "speaker.fill")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(level.isMuted ? .red : .white.opacity(0.8))
+                        .frame(width: 22, height: 22)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(level.isMuted ? "Unmute" : "Mute")
+            }
+            SegmentedLevelBar(
+                value: level.isMuted ? 0 : level.value,
+                tint: activity.presentation.accent.color
+            )
+            .overlay {
+                if let adjustActionID = level.adjustActionID {
+                    GeometryReader { proxy in
+                        Color.clear
+                            .contentShape(Rectangle())
+                            .gesture(DragGesture(minimumDistance: 0).onChanged { drag in
+                                let value = drag.location.x / max(proxy.size.width, 1)
+                                model.adjust(actionID: adjustActionID, to: value, on: activity)
+                            })
+                    }
+                    .accessibilityElement()
+                    .accessibilityLabel(activity.title)
+                    .accessibilityValue(Text(level.value, format: .percent.precision(.fractionLength(0))))
+                    .accessibilityAdjustableAction { direction in
+                        let step = direction == .increment ? 0.0625 : -0.0625
+                        model.adjust(actionID: adjustActionID, to: level.value + step, on: activity)
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// The activity's options (e.g. output devices) as a selectable list.
+private struct OptionsList: View {
+    let activity: NotchActivity
+    let model: NotchViewModel
+
+    /// Keeps the card within the expanded height limit.
+    private let maxOptions = 4
+
+    var body: some View {
+        if let options = activity.presentation.options, options.options.count > 1 {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(options.title)
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(.tertiary)
+                    .textCase(.uppercase)
+                ForEach(options.options.prefix(maxOptions)) { option in
+                    Button { model.perform(actionID: option.actionID, on: activity) } label: {
+                        HStack(spacing: 8) {
+                            Image(systemName: option.symbolName)
+                                .font(.system(size: 11, weight: .medium))
+                                .frame(width: 16)
+                            Text(option.title)
+                                .font(.system(size: 12))
+                                .lineLimit(1)
+                            Spacer(minLength: 4)
+                            if option.isSelected {
+                                Image(systemName: "checkmark")
+                                    .font(.system(size: 10, weight: .bold))
+                            }
+                        }
+                        .foregroundStyle(option.isSelected ? .white : .white.opacity(0.7))
+                        .padding(.horizontal, 6)
+                        .frame(height: 22)
+                        .background(
+                            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                .fill(option.isSelected ? .white.opacity(0.1) : .clear)
+                        )
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityAddTraits(option.isSelected ? .isSelected : [])
+                }
+            }
+        }
+    }
+}
+
+/// Quick actions or presets as a grid of tiles.
+private struct ActionGrid: View {
+    let activity: NotchActivity
+    let items: [ActionItem]
+    let model: NotchViewModel
+
+    private let columns = Array(repeating: GridItem(.flexible(), spacing: 6), count: 4)
+
+    var body: some View {
+        LazyVGrid(columns: columns, spacing: 6) {
+            ForEach(items) { item in
+                Button { model.perform(actionID: item.actionID, on: activity) } label: {
+                    VStack(spacing: 4) {
+                        Image(systemName: item.symbolName)
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(item.isActive ? activity.presentation.accent.tileTint : .white.opacity(0.85))
+                            .tintedSymbolInsideClip()
+                        Text(item.title)
+                            .font(.system(size: 10, weight: .medium))
+                            .multilineTextAlignment(.center)
+                            .lineLimit(2)
+                            .minimumScaleFactor(0.8)
+                    }
+                    .padding(.horizontal, 2)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 50)
+                    .background(
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .fill(.white.opacity(item.isActive ? 0.16 : 0.07))
+                    )
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(item.title)
+                .accessibilityAddTraits(item.isActive ? .isSelected : [])
+            }
         }
     }
 }
@@ -366,17 +505,33 @@ private struct WidgetRow: View {
     let activity: NotchActivity
     let model: NotchViewModel
 
+    /// Button counts to try for an `actions` row, most first.
+    static func compactActionCounts(for total: Int) -> [Int] {
+        Array(Set([total, 6, 5, 4, 3].map { min($0, total) })).sorted(by: >)
+    }
+
     var body: some View {
         HStack(spacing: 10) {
             IconTile(presentation: activity.presentation, size: 22)
-            Text(activity.title)
-                .font(.system(size: 12, weight: .medium))
-                .lineLimit(1)
-                .layoutPriority(1)
+            if !isActionRow {
+                Text(activity.title)
+                    .font(.system(size: 12, weight: .medium))
+                    .lineLimit(1)
+                    .layoutPriority(1)
+            }
             Spacer(minLength: 6)
             trailing
         }
         .accessibilityElement(children: .combine)
+    }
+
+    /// Button rows need the room; the icon still identifies them.
+    private var isActionRow: Bool {
+        if case .actions = activity.presentation.content { true } else { false }
+    }
+
+    private var hasCountdown: Bool {
+        if case .countdown = activity.presentation.compactAccessory { true } else { false }
     }
 
     @ViewBuilder
@@ -410,8 +565,19 @@ private struct WidgetRow: View {
                 .buttonStyle(.plain)
                 .accessibilityLabel(media.isPlaying ? "Pause" : "Play")
             }
+        case .actions(let actions):
+            // Show as many buttons as fit beside the icon, so the row never widens its column.
+            ViewThatFits(in: .horizontal) {
+                ForEach(Self.compactActionCounts(for: actions.items.count), id: \.self) { count in
+                    CompactActionButtons(activity: activity, items: Array(actions.items.prefix(count)), model: model)
+                }
+            }
         case .standard:
-            if let subtitle = activity.subtitle {
+            // A ticking countdown says more than a static subtitle (e.g. a running timer).
+            if hasCountdown {
+                CompactAccessoryView(activity: activity, fontSize: 11)
+                    .fixedSize()
+            } else if let subtitle = activity.subtitle {
                 Text(subtitle)
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
@@ -419,10 +585,46 @@ private struct WidgetRow: View {
             }
             if let action = activity.actions.first {
                 CapsuleActionButton(action: action, compact: true) { model.perform(action, on: activity) }
-            } else {
+            } else if !hasCountdown {
                 CompactAccessoryView(activity: activity, fontSize: 11)
             }
         }
+    }
+}
+
+/// A row of small buttons for `actions` content in the widget column.
+private struct CompactActionButtons: View {
+    let activity: NotchActivity
+    let items: [ActionItem]
+    let model: NotchViewModel
+
+    var body: some View {
+        HStack(spacing: 2) {
+            ForEach(items) { item in
+                Button { model.perform(actionID: item.actionID, on: activity) } label: {
+                    Group {
+                        if let compactTitle = item.compactTitle {
+                            Text(compactTitle)
+                                .font(.system(size: 10, weight: .semibold).monospacedDigit())
+                                .lineLimit(1)
+                        } else {
+                            Image(systemName: item.symbolName)
+                                .font(.system(size: 10, weight: .semibold))
+                                .tintedSymbolInsideClip()
+                        }
+                    }
+                    .foregroundStyle(item.isActive ? .white : .white.opacity(0.75))
+                    .padding(.horizontal, 6)
+                    .frame(minWidth: 22)
+                    .frame(height: 20)
+                    .background(Capsule().fill(.white.opacity(item.isActive ? 0.2 : 0.1)))
+                    .contentShape(Capsule())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(item.title)
+            }
+        }
+        .fixedSize()
     }
 }
 

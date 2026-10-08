@@ -24,6 +24,7 @@ enum ActivityKind: String, Sendable, CaseIterable {
     case agent
     case clipboard
     case system
+    case quickActions
     case generic
 }
 
@@ -115,10 +116,25 @@ struct MediaContent: Equatable, Sendable {
 struct LevelContent: Equatable, Sendable {
     var value: Double
     var valueText: String?
+    /// When set, the bar is draggable in the command center; new values are routed to the
+    /// provider through `ActivityProvider.adjust(actionID:to:on:)`.
+    var adjustActionID: ActivityAction.ID?
+    /// When set, a mute button is shown; tapping it invokes this action.
+    var muteActionID: ActivityAction.ID?
+    var isMuted: Bool
 
-    init(value: Double, valueText: String? = nil) {
+    init(
+        value: Double,
+        valueText: String? = nil,
+        adjustActionID: ActivityAction.ID? = nil,
+        muteActionID: ActivityAction.ID? = nil,
+        isMuted: Bool = false
+    ) {
         self.value = min(max(value, 0), 1)
         self.valueText = valueText
+        self.adjustActionID = adjustActionID
+        self.muteActionID = muteActionID
+        self.isMuted = isMuted
     }
 }
 
@@ -146,6 +162,33 @@ struct ToggleContent: Equatable, Sendable {
     }
 }
 
+/// One button in an `ActionsContent` grid, such as a quick action or a timer preset.
+struct ActionItem: Identifiable, Equatable, Sendable {
+    /// The action ID routed to the provider when the item is tapped.
+    let actionID: ActivityAction.ID
+    var title: String
+    /// Very short label for the compact button row (e.g. "5m"). When nil, the symbol is shown.
+    var compactTitle: String?
+    var symbolName: String
+    /// Highlights the item, e.g. a quick action whose feature is currently on.
+    var isActive: Bool
+
+    var id: ActivityAction.ID { actionID }
+
+    init(actionID: ActivityAction.ID, title: String, compactTitle: String? = nil, symbolName: String, isActive: Bool = false) {
+        self.actionID = actionID
+        self.title = title
+        self.compactTitle = compactTitle
+        self.symbolName = symbolName
+        self.isActive = isActive
+    }
+}
+
+/// A set of buttons: a tile grid on the featured card, a row of small buttons in the widget column.
+struct ActionsContent: Equatable, Sendable {
+    var items: [ActionItem]
+}
+
 /// The kind of content an activity carries, which selects how the notch draws it in detail.
 enum ActivityContent: Equatable, Sendable {
     case standard
@@ -153,6 +196,30 @@ enum ActivityContent: Equatable, Sendable {
     case level(LevelContent)
     case metric(MetricContent)
     case toggle(ToggleContent)
+    case actions(ActionsContent)
+}
+
+/// A choice among a few options, such as the audio output device. Shown as a list on the
+/// featured card; choosing an option invokes its action ID.
+struct ActivityOptions: Equatable, Sendable {
+    struct Option: Identifiable, Equatable, Sendable {
+        let actionID: ActivityAction.ID
+        var title: String
+        var symbolName: String
+        var isSelected: Bool
+
+        var id: ActivityAction.ID { actionID }
+
+        init(actionID: ActivityAction.ID, title: String, symbolName: String, isSelected: Bool = false) {
+            self.actionID = actionID
+            self.title = title
+            self.symbolName = symbolName
+            self.isSelected = isSelected
+        }
+    }
+
+    var title: String
+    var options: [Option]
 }
 
 /// How an activity should be drawn. Purely descriptive; providers never touch views.
@@ -167,6 +234,8 @@ struct ActivityPresentation: Equatable, Sendable {
     /// Briefly reveal (peek) the notch whenever this activity becomes primary or is updated
     /// while primary, regardless of priority. Used for HUD-style activities such as volume.
     var revealsOnUpdate: Bool
+    /// An optional choice shown on the featured card, such as the audio output device.
+    var options: ActivityOptions?
 
     init(
         symbolName: String,
@@ -174,7 +243,8 @@ struct ActivityPresentation: Equatable, Sendable {
         compactAccessory: CompactAccessory? = nil,
         statusText: String? = nil,
         content: ActivityContent = .standard,
-        revealsOnUpdate: Bool = false
+        revealsOnUpdate: Bool = false,
+        options: ActivityOptions? = nil
     ) {
         self.symbolName = symbolName
         self.accent = accent
@@ -182,7 +252,17 @@ struct ActivityPresentation: Equatable, Sendable {
         self.statusText = statusText
         self.content = content
         self.revealsOnUpdate = revealsOnUpdate
+        self.options = options
     }
+}
+
+/// Where an activity may appear.
+enum ActivityPlacement: Sendable {
+    /// Competes for the notch: can become primary and show as a Live Activity or Peek.
+    case notch
+    /// Listed only in the expanded command center (controls and background context such as
+    /// CPU usage or quick actions). Never becomes primary, so it never keeps the notch open.
+    case commandCenter
 }
 
 /// A description of one thing that is happening, published by a provider.
@@ -195,6 +275,7 @@ struct NotchActivity: Identifiable, Equatable, Sendable {
     let source: ActivitySource
     var kind: ActivityKind
     var priority: ActivityPriority
+    var placement: ActivityPlacement
 
     var title: String
     var subtitle: String?
@@ -214,6 +295,7 @@ struct NotchActivity: Identifiable, Equatable, Sendable {
         source: ActivitySource,
         kind: ActivityKind,
         priority: ActivityPriority,
+        placement: ActivityPlacement = .notch,
         title: String,
         subtitle: String? = nil,
         startedAt: Date = .now,
@@ -226,6 +308,7 @@ struct NotchActivity: Identifiable, Equatable, Sendable {
         self.source = source
         self.kind = kind
         self.priority = priority
+        self.placement = placement
         self.title = title
         self.subtitle = subtitle
         self.startedAt = startedAt

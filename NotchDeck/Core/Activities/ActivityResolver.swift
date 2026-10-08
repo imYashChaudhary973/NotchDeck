@@ -21,6 +21,7 @@ struct ActivityResolution: Equatable, Sendable {
 /// 2. Higher priority wins.
 /// 3. Among equal priorities, the currently displayed activity keeps the notch (no flapping).
 /// 4. Otherwise, the most recently published activity wins.
+/// 5. Only `.notch` activities can be primary; `.commandCenter` activities are always queued.
 ///
 /// Because the store keeps interrupted activities, removing a higher-priority activity
 /// automatically restores the one it interrupted.
@@ -36,10 +37,13 @@ struct ActivityResolver: Sendable {
             }
             .map(\.activity)
 
-        guard var primary = ranked.first else { return .empty }
+        let eligible = ranked.filter { $0.placement == .notch }
+        guard var primary = eligible.first else {
+            return ActivityResolution(primary: nil, queued: ranked)
+        }
 
         if let current,
-           let incumbent = ranked.first(where: { $0.key == current }),
+           let incumbent = eligible.first(where: { $0.key == current }),
            incumbent.priority == primary.priority {
             primary = incumbent
         }

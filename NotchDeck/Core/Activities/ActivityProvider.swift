@@ -19,11 +19,25 @@ protocol ActivityProvider: AnyObject {
 
     /// Called when the user invokes one of the provider's activity actions.
     func perform(actionID: ActivityAction.ID, on activityID: NotchActivity.ID)
+
+    /// Called when the user sets a continuous control (e.g. drags a level bar) to `value` in `0...1`.
+    func adjust(actionID: ActivityAction.ID, to value: Double, on activityID: NotchActivity.ID)
+
+    /// Called when the set of this provider's activities on screen changes (empty when none are).
+    /// Use it to do work only while it can be seen, e.g. sample CPU usage only while it is displayed.
+    func displayedActivitiesChanged(_ ids: Set<NotchActivity.ID>)
+
+    /// Called when the user scrolls over the notch, with the scroll in normalized steps
+    /// (positive = up). Return `true` if the provider handled it; the first provider that does wins.
+    func handleNotchScroll(_ delta: Double) -> Bool
 }
 
 extension ActivityProvider {
     func stop() {}
     func perform(actionID: ActivityAction.ID, on activityID: NotchActivity.ID) {}
+    func adjust(actionID: ActivityAction.ID, to value: Double, on activityID: NotchActivity.ID) {}
+    func displayedActivitiesChanged(_ ids: Set<NotchActivity.ID>) {}
+    func handleNotchScroll(_ delta: Double) -> Bool { false }
 }
 
 /// A provider's handle into the Activity Engine, scoped to that provider's source.

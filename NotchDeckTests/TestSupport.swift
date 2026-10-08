@@ -11,14 +11,17 @@ func makeActivity(
     _ id: String,
     source: ActivitySource = .testA,
     priority: ActivityPriority = .passive,
+    placement: ActivityPlacement = .notch,
+    kind: ActivityKind = .generic,
     expiresAt: Date? = nil,
     title: String? = nil
 ) -> NotchActivity {
     NotchActivity(
         id: id,
         source: source,
-        kind: .generic,
+        kind: kind,
         priority: priority,
+        placement: placement,
         title: title ?? id,
         startedAt: Date(timeIntervalSinceReferenceDate: 0),
         expiresAt: expiresAt,

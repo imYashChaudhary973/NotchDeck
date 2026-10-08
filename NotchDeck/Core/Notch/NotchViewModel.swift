@@ -15,7 +15,11 @@ final class NotchViewModel {
     private(set) var expandedContentHeight: CGFloat?
 
     /// The command-center tab the user picked. Reset to the overview whenever the notch collapses.
-    var selectedSection: CommandCenterSection = .overview
+    var selectedSection: CommandCenterSection = .overview {
+        didSet {
+            if selectedSection != oldValue { onSelectedSectionChange?() }
+        }
+    }
 
     /// The drag currently hovering the shelf, if any.
     private(set) var shelfDrag: ShelfDrag?
@@ -24,6 +28,7 @@ final class NotchViewModel {
     /// Called when measured content changes the size of the current surface.
     @ObservationIgnored var onLayoutChange: (() -> Void)?
     @ObservationIgnored var onClick: (() -> Void)?
+    @ObservationIgnored var onSelectedSectionChange: (() -> Void)?
     @ObservationIgnored var onOpenSettings: (() -> Void)?
 
     init(engine: ActivityEngine) {
@@ -68,6 +73,10 @@ final class NotchViewModel {
 
     func perform(actionID: ActivityAction.ID, on activity: NotchActivity) {
         engine.perform(actionID: actionID, on: activity.key)
+    }
+
+    func adjust(actionID: ActivityAction.ID, to value: Double, on activity: NotchActivity) {
+        engine.adjust(actionID: actionID, to: value, on: activity.key)
     }
 
     func updateShelfDrag(_ drag: ShelfDrag?) {
