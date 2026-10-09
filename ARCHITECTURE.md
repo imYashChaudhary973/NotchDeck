@@ -2,7 +2,7 @@
 
 > The phase-by-phase brief behind this architecture is [`docs/development/engineering-plan.md`](docs/development/engineering-plan.md).
 
-> **Status: Phase 3 implemented.** The notch foundation, Activity Engine and state machine (Phase 1), the local utility providers — Timers, Keep Awake, System Metrics, Audio, Quick Actions (Phase 2) — and Now Playing (Apple Music, Spotify) and Calendar (Phase 3) exist and are unit tested. Sections marked *(planned)* describe later phases.
+> **Status: Phase 4 implemented.** The notch foundation, Activity Engine and state machine (Phase 1), the local utility providers — Timers, Keep Awake, System Metrics, Audio, Quick Actions (Phase 2) — Now Playing (Apple Music, Spotify) and Calendar (Phase 3), and the File Shelf and clipboard history (Phase 4) exist and are unit tested. Sections marked *(planned)* describe later phases.
 
 ## Core Principle
 
@@ -69,13 +69,13 @@ The **resting state** is `liveActivity` when there is a primary activity, otherw
 | `liveActivity` | Notch plus a 52 pt "ear" on each side: glyph pinned to the leading edge, accessory (countdown, progress ring, symbol) to the trailing edge. |
 | `peek` | 420 pt wide: icon tile and status beside the notch, then title and subtitle — or a segmented level bar for `level` content (volume HUD). |
 | `expanded` | The **command center**, 600 pt wide, height fits its content (56–300 pt below the notch row). Section tabs sit beside the notch; the featured activity gets a large card and the next four go in a widget column. See below. |
-| `shelf` | Drop target with three tiles (Tray / Copy / AirDrop) and the dragged item's name; the tile under the pointer highlights. Phase 1 refuses drops (the File Shelf is Phase 4). |
+| `shelf` | Drop target with three tiles (Shelf / Copy / AirDrop) and the dragged item's name; the tile under the pointer highlights, and a drop anywhere else keeps the item on the shelf. Entered only while a provider accepts drops; it also opens as a drag approaches the notch (see *Drops*). |
 
 ### Command center
 
 `CommandCenterLayout` (pure, unit tested) derives the expanded layout from the resolution:
 
-- **Tabs:** *Overview* plus one tab per `ActivityKind` that has live activities (fixed order: music, meeting, timer, transfers, agents, clipboard, system, quick actions). A purple dot marks tabs with an activity that requests attention. Tabs are hidden when only Overview exists.
+- **Tabs:** *Overview* plus one tab per `ActivityKind` that has live activities (fixed order: music, meeting, timer, shelf, clipboard, transfers, agents, system, quick actions). A purple dot marks tabs with an activity that requests attention. Tabs are hidden when only Overview exists.
 - **Featured card:** the first activity of the selected section — in Overview, the engine's primary activity, so priority still decides prominence.
 - **Widget column:** the next four activities, then "+N more".
 
@@ -92,6 +92,7 @@ Providers choose how their activity is drawn in detail through `ActivityPresenta
 | `.toggle(ToggleContent)` | Switch | Keep Awake |
 | `.actions(ActionsContent)` | Tile grid on the featured card, button row in the widget column | Quick Actions, timer presets |
 | `.schedule(ScheduleContent)` | List of timed entries (time, calendar color, title, Now, Join) on the featured card; the subtitle in the widget column | calendar schedule |
+| `.collection(CollectionContent)` | Items as a horizontal strip of tiles or as rows, each clickable, with a context menu (actions, Share) and draggable out when it has a payload; the first thumbnails in the widget column | File Shelf, clipboard history |
 
 `.level` can be interactive: with `adjustActionID` the bar is draggable, and with `muteActionID` it gets a mute button. `ActivityPresentation.options` adds a selectable list to the featured card (output devices).
 
@@ -103,7 +104,15 @@ Phase 2 added three engine capabilities ([ADR 0005](docs/decisions/0005-local-ut
 
 - **Placement.** `NotchActivity.placement` is `.notch` (default) or `.commandCenter`. Command-center activities are listed only in the expanded command center. For them, priority only orders the list.
 - **Display feedback.** `NotchController` reports the activities on screen (`NotchDisplay.displayedKeys`) to `ActivityEngine.updateDisplayedActivities(_:)`. Providers hear about their own through `displayedActivitiesChanged(_:)` and can pause work nobody can see.
-- **Input routing.** `adjust(actionID:to:on:)` delivers continuous values. `handleNotchScroll(_:)` delivers scrolls over the notch in normalized steps (`NotchScroll`); the first provider that returns `true` handles the scroll.
+- **Input routing.** `adjust(actionID:to:on:)` delivers continuous values. `handleNotchScroll(_:)` delivers vertical scrolls over the notch in normalized steps (`NotchScroll`); the first provider that returns `true` handles the scroll. Horizontal scrolls, and vertical ones nobody handles, reach the content (the shelf's tile strip).
+
+### Drops
+
+Phase 4 ([ADR 0007](docs/decisions/0007-shelf-and-clipboard.md)) routes content dropped on the notch through the engine, so no feature touches the window:
+
+- A provider opts in with `acceptsDrops` and receives drops in `handleDrop(_ drop: NotchDrop) -> Bool`. `ActivityEngine.acceptsDrops` is true while a registered provider accepts drops; `routeDrop(_:)` offers a drop to them in registration order.
+- `NotchController` accepts a drag only while the engine accepts drops, the drag carries a readable type and it isn't NotchDeck's own. On drop it reads the pasteboard (`NotchDrop.items(from:)`: files, then file promises, then image/PDF data, then web links, then text), picks the tile under the pointer (`ShelfDropTargeting`) and calls `routeDrop`.
+- `DragApproachMonitor` (global mouse-event monitor, no permission) feeds `DragApproachTracker` (pure), which opens the shelf when a content drag enters a region around the notch, before the pointer reaches the top edge where macOS would open the Spaces bar. It runs only while a provider accepts drops and the setting is on.
 
 ## Providers
 
@@ -116,6 +125,8 @@ Phase 2 added three engine capabilities ([ADR 0005](docs/decisions/0005-local-ut
 | `QuickActionsProvider` | `quickActions` | Quick Actions grid (`.commandCenter`) | `NSWorkspace` (Downloads, Applications, Activity Monitor, Screenshot app, Screen Saver) | Never |
 | `MusicProvider` | `music` | Now Playing: `.notch` Passive (20) while playing, `.commandCenter` (22) while paused, withdrawn when stopped | Through `MediaProvider`s: distributed notifications and Apple Events (Automation permission, asked on first control) | Only on player notifications |
 | `CalendarProvider` | `calendar` | The next meeting on the notch (30 → 40 → 50 as it approaches), the schedule (`.commandCenter`), an access row while not allowed | EventKit (full access, asked when the feature is turned on) | At the next rule boundary or event start/end; once a minute while a countdown is on the notch; EventKit queried on changes and every 6 h |
+| `ShelfProvider` | `shelf` | The shelf's items (`.commandCenter`, 25, `.collection` tiles); a 2.5 s "Added to Shelf" / "Copied" confirmation on the notch after a drop | Bookmarks, `NSFilePromiseReceiver`, `QLThumbnailGenerator`, `QLPreviewPanel`, `NSWorkspace`, `NSSharingService` (AirDrop) | Only at the next item expiry |
+| `ClipboardProvider` | `clipboard` | Recent clipboard entries (`.commandCenter`, 16, `.collection` rows); an access row when macOS doesn't allow reading. Off by default. | `NSPasteboard` change count, then contents only after a change; `accessBehavior` (macOS 15.4+) | Once a second while on, not paused and the screens are awake; once at the next retention expiry |
 
 Timer priorities: running 30, last minute 35, last 10 s 40, finished 50 (for 10 s, then removed), paused 20. Running timers store their end date, so they stay accurate across sleep and relaunch; the countdown is drawn by `Text(timerInterval:)`.
 
@@ -151,11 +162,25 @@ Quick actions implement the `QuickAction` protocol (`id`, `title`, `symbolName`,
 - **Permission**: off by default; access is requested only when the user turns Calendar on (or presses Allow Access… in the command center or Settings). Without access the provider publishes only an access row; it never prompts on launch.
 - **Scheduling**: EventKit is queried on start, on `EKEventStoreChanged`, clock or day changes, wake, and every 6 h (each query reaches look-ahead + 6 h). Otherwise the provider sleeps until the next boundary of a cached event.
 
+### File Shelf: `ShelfProvider`
+
+- **Model** (`ShelfCollection`, pure): newest first; dropping the same file, link or text again moves it to the front, keeping its pin and the longer retention; at most 30 items (oldest unpinned leave). Each item expires after the lifetime setting (1 hour or end of day), can be kept longer per item, or is pinned.
+- **Storage** (`ShelfStoring`, `ShelfDirectoryStorage`): the item list in `~/Library/Application Support/NotchDeck/Shelf/shelf.json`. Files and folders are bookmarks (`ShelfFileReference`), never copied; a file that can't be found is shown as Missing. Only received file promises and dropped image/PDF data are written, one directory per item, deleted with it.
+- **Drop tiles**: Shelf keeps the drop; Copy puts it on the clipboard (`PasteboardWriting`); AirDrop opens `NSSharingService(.sendViaAirDrop)`. Neither of the last two keeps anything.
+- **Actions**: Quick Look, Open, Copy, Show in Finder, Share, Keep for 1 Hour, Keep Until Tonight, Pin/Unpin, Remove; drag out into any app. Thumbnails (Quick Look, 48 pt) are made off the main thread after the shelf has been on screen.
+
+### Clipboard history: `ClipboardProvider`
+
+- **Off by default.** While on, the provider reads `NSPasteboard.changeCount` once a second; contents are read only after a change. It never reads concealed/transient content, copies from password managers or excluded apps, its own writes, or what was copied before it started (except once, right after the user turns it on, so any macOS prompt appears in context).
+- **Model** (`ClipboardCapture`, `ClipboardHistory`, pure): classification (files, color, link, code, text with small RTF, image), SHA-256 deduplication, maximum unpinned entries, retention, pins, clearing and search.
+- **Storage** (`ClipboardStoring`, `ClipboardDirectoryStore`): `~/Library/Application Support/NotchDeck/Clipboard/history.json` and an `Images` directory, written a second after the last change.
+- **UI**: the command center lists the five most recent entries (pinned first) with Search History, Pause and Clear; the History window (`ClipboardHistoryView`) searches every entry.
+
 ### Context resolution
 
 Competing activities are resolved by priority alone; Phase 3 needed no resolver change ([ADR 0006](docs/decisions/0006-media-and-calendar-providers.md)). Music (20) is interrupted by a meeting within 15 minutes (30). The meeting escalates to 40 and then 50, which peeks once. When it leaves the notch (grace over, joined or dismissed), music is primary again. A running timer (30) keeps the notch against an upcoming meeting (30) until the meeting reaches 40. Paused music is in the command center and never comes back to the notch. `ContextResolutionTests` cover these sequences with the real providers.
 
-Each feature can be turned off in Settings ▸ Features. `AppEnvironment` registers a provider only while its feature is on. Turning a feature off unregisters it, cancelling timers or releasing Keep Awake. Quitting keeps saved timers and an active Keep Awake session for the next launch.
+Each feature can be turned off in Settings ▸ Features. `AppEnvironment` registers a provider only while its feature is on. Turning a feature off unregisters it, cancelling timers, releasing Keep Awake or emptying the shelf (clipboard history is kept until cleared in Settings). Quitting keeps saved timers and an active Keep Awake session for the next launch.
 
 ## Adding a Feature: Registering an Activity Provider
 
@@ -229,9 +254,9 @@ Provider rules:
 App            Entry point (MenuBarExtra), AppDelegate, AppEnvironment (composition root), auxiliary windows.
 Core           Activities (model, store, resolver, engine, provider protocol) and Notch (geometry, layout,
                state machine, panel, hosting view, controller, view model).
-Features       Activity providers: Timers, KeepAwake, SystemMetrics, Audio, QuickActions, Music, Calendar; DebugActivities (Debug builds only).
+Features       Activity providers: Timers, KeepAwake, SystemMetrics, Audio, QuickActions, Music, Calendar, Shelf, Clipboard; DebugActivities (Debug builds only).
 Integrations   Bridges to external apps: MediaApps (Apple Music, Spotify). Planned: Claude Code, Codex (Phase 5).
-Services       Shared system services: LaunchAtLoginService.
+Services       Shared system services: LaunchAtLoginService, PasteboardWriter.
 UI             SwiftUI views per state (Compact, Peek, Expanded, Shelf) and Components.
 Settings       AppSettings (UserDefaults-backed, Observable) and SettingsView.
 ```
@@ -246,7 +271,8 @@ NotchDeck/
 │   │                        ActivityEngine, ActivityProvider (+ ActivityPublisher)
 │   └── Notch/               NotchGeometry (+ DisplayPreference, NotchScreenSelector), NotchLayout,
 │                            FullScreenCoverage (+ NotchVisibility), NotchDisplay (+ NotchScroll),
-│                            NotchStateMachine, NotchPanel, NotchHostingView, NotchViewModel, NotchController
+│                            NotchStateMachine, NotchPanel, NotchHostingView, NotchViewModel, NotchController,
+│                            NotchDrop (+ ShelfDropTargeting), DragApproach (tracker + monitor)
 ├── Features/
 │   ├── Timers/              CountdownTimer (+ TimerCollection, TimerRules), TimerProvider, CustomTimerView
 │   ├── KeepAwake/           KeepAwakeProvider (+ KeepAwakeSession), PowerAssertion
@@ -256,11 +282,14 @@ NotchDeck/
 │   ├── Music/               MediaProvider (+ NowPlaying, MediaCapabilities), MusicProvider
 │   ├── Calendar/            CalendarEvent (+ CalendarStore), CalendarRules (+ MeetingCountdown), MeetingLinkDetector,
 │   │                        CalendarProvider, EventKitCalendarStore
+│   ├── Shelf/               ShelfItem (+ ShelfCollection, ShelfLifetime), ShelfStorage, ShelfSystem, ShelfProvider
+│   ├── Clipboard/           ClipboardHistory, ClipboardCapture (+ ColorParser), ClipboardPasteboard, ClipboardStore,
+│   │                        ClipboardProvider, ClipboardHistoryView
 │   └── DebugActivities/     DebugActivityProvider, DebugPanelView (#if DEBUG)
 ├── Integrations/
 │   └── MediaApps/           ScriptableMediaApp (+ AppleMusicApp, SpotifyApp), ScriptableMediaProvider,
 │                            AppleScriptRunner, ArtworkLoader
-├── Services/                LaunchAtLoginService
+├── Services/                LaunchAtLoginService, PasteboardWriter
 ├── Settings/                AppSettings, SettingsView
 └── UI/
     ├── NotchRootView.swift
@@ -270,8 +299,9 @@ NotchDeck/
 NotchDeckTests/
 ├── Activities/              store, resolver, engine, placement, input-routing and context-resolution tests
 ├── Features/                timer, keep awake, system metrics, audio, quick actions, music, media-app parsing,
-│                            calendar rules, meeting links and calendar provider tests (with fakes)
-├── Notch/                   state machine, geometry, layout, compact layout, full-screen visibility, drag description, display, warm-up tests
+│                            calendar rules, meeting links, calendar provider, shelf and clipboard tests (with fakes)
+├── Notch/                   state machine, geometry, layout, compact layout, full-screen visibility, drag description,
+│                            drag approach and drop routing, display, warm-up tests
 └── Settings/                settings persistence tests
 ```
 
@@ -282,7 +312,7 @@ The Xcode project uses **file-system-synchronized groups**: any file added under
 ## Open Questions
 
 - App Sandbox and distribution (Developer ID, notarization): revisit before first release ([ADR 0003](docs/decisions/0003-app-runtime-configuration.md)).
-- Drag "approach" region larger than the notch for the File Shelf (Phase 4).
+- Security-scoped bookmarks for shelf files once the App Sandbox is enabled ([ADR 0007](docs/decisions/0007-shelf-and-clipboard.md)).
 - Keyboard navigation of the notch surface (Phase 6).
 - Agent IPC transport for Phase 5 (`notchctl` → app; must be local and authenticated — see `SECURITY.md`).
 
@@ -296,5 +326,6 @@ Significant decisions are recorded in [`docs/decisions/`](docs/decisions/):
 - [0004 — Command center presentation](docs/decisions/0004-command-center-presentation.md)
 - [0005 — Local utility providers](docs/decisions/0005-local-utility-providers.md)
 - [0006 — Media and calendar providers](docs/decisions/0006-media-and-calendar-providers.md)
+- [0007 — File Shelf and clipboard history](docs/decisions/0007-shelf-and-clipboard.md)
 
 Write an ADR when a decision is hard to reverse, affects multiple domains, or chooses between real alternatives. See [`docs/decisions/README.md`](docs/decisions/README.md) for the template.

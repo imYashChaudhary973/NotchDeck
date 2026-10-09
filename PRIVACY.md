@@ -35,6 +35,10 @@ All of it is treated as private by default.
 | Timers (duration, end time, the optional name you type) | `UserDefaults` (`timers.saved`) | Running timers survive a relaunch. Removed when they finish or are cancelled, and when Timers is turned off. |
 | Keep Awake session (on/off, end time) | `UserDefaults` (`keepAwake.session`) | An active session survives a relaunch |
 | Calendars you turned off (calendar IDs only), look-ahead and notch timing | `UserDefaults` (`calendar.*`) | Calendar settings |
+| Shelf items: bookmarks to dropped files and folders (with their path and name), dropped links and text, when each item expires | `~/Library/Application Support/NotchDeck/Shelf/shelf.json` (readable only by you) | Items stay on the shelf across a relaunch until they expire. Removed with the item; everything is removed when the shelf is turned off. |
+| Files the shelf received without a file of their own (a photo dragged from Photos, a mail attachment, a dragged image) | `~/Library/Application Support/NotchDeck/Shelf/Items/` | Deleted when the item is removed or expires |
+| Clipboard history (only when turned on): copied text (with formatting for small copies), links, colors, file paths, images, the time and the app name | `~/Library/Application Support/NotchDeck/Clipboard/` (`history.json`, `Images/`; readable only by you) | So copies can be found and copied again. Limited by count (default 50) and age (default 7 days) unless pinned. Clearable in Settings, even while the feature is off. |
+| Apps excluded from clipboard history (bundle IDs) | `UserDefaults` (`clipboard.*`) | Clipboard settings |
 
 CPU, memory, battery and audio-device information is read on demand, shown in the notch and never stored, logged or sent anywhere.
 
@@ -43,6 +47,20 @@ CPU, memory, battery and audio-device information is read on demand, shown in th
 - Read-only access through EventKit, requested only when you turn Calendar on in Settings (or press Allow Access…). Turning the feature off stops all reading; the permission itself is managed in System Settings ▸ Privacy & Security ▸ Calendars.
 - Event titles, times and video-call links are kept in memory while shown and never stored, logged or sent anywhere. Event notes and locations are scanned in memory only to find a meeting link.
 - Join opens only `https`/`http` links to known meeting services (or a location that is just a web link), in your default browser or meeting app.
+
+### File Shelf
+
+- Dropped files and folders are referenced (bookmarks), never copied or read. NotchDeck makes a small Quick Look thumbnail for display; it is kept in memory only.
+- Only `http`/`https` links are kept or opened. Nothing on the shelf is sent anywhere, except where you explicitly use Share or AirDrop.
+- Watching for drags uses a mouse-event monitor that sees only button presses and pointer movement (never keystrokes) and needs no permission. It reads only the types of a drag, not its contents, until you drop.
+
+### Clipboard history
+
+- **Off by default.** Nothing is read until you turn it on in Settings.
+- While on, NotchDeck checks once a second whether the clipboard changed, using a counter that reveals nothing about the contents. Contents are read only after a change.
+- Never kept: content apps mark as concealed or transient (passwords, one-time codes), anything copied while a password manager (1Password, Passwords, Keychain Access, Bitwarden and others) is frontmost, copies from apps you exclude, and what was on the clipboard before you turned the feature on. Pause stops keeping copies.
+- On macOS 15.4 and later, macOS may ask once whether NotchDeck may paste from other apps, right after you turn the feature on. If you choose to be asked every time, or deny it, NotchDeck stops reading and shows a link to Privacy & Security instead.
+- Clipboard contents are never logged, synced, uploaded or sent anywhere.
 
 ### Now Playing
 
