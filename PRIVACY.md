@@ -39,8 +39,9 @@ All of it is treated as private by default.
 | Files the shelf received without a file of their own (a photo dragged from Photos, a mail attachment, a dragged image) | `~/Library/Application Support/NotchDeck/Shelf/Items/` | Deleted when the item is removed or expires |
 | Clipboard history (only when turned on): copied text (with formatting for small copies), links, colors, file paths, images, the time and the app name | `~/Library/Application Support/NotchDeck/Clipboard/` (`history.json`, `Images/`; readable only by you) | So copies can be found and copied again. Limited by count (default 50) and age (default 7 days) unless pinned. Clearable in Settings, even while the feature is off. |
 | Apps excluded from clipboard history (bundle IDs) | `UserDefaults` (`clipboard.*`) | Clipboard settings |
+| The developer bridge socket (holds no data) | `~/Library/Application Support/NotchDeck/Bridge/bridge.sock` (reachable only by you) | Developer tools report sessions through it. Removed when Developer agents is turned off. |
 
-CPU, memory, battery and audio-device information is read on demand, shown in the notch and never stored, logged or sent anywhere.
+CPU, memory, battery and audio-device information is read on demand, shown in the notch and never stored, logged or sent anywhere. Developer agent sessions are kept in memory only (see below).
 
 ### Calendar
 
@@ -67,6 +68,15 @@ CPU, memory, battery and audio-device information is read on demand, shown in th
 - Track information comes from notifications Music and Spotify broadcast on the Mac. Reading it needs no permission and nothing is stored.
 - Playback controls, the position and artwork use Apple Events and need your Automation permission, which macOS asks for the first time you press a control. NotchDeck never launches Music or Spotify.
 - **Network:** Spotify provides artwork as a link. NotchDeck downloads it over HTTPS, only from Spotify's image servers (`scdn.co`, `spotifycdn.com`), without cookies or a cache (ephemeral session). It is the only network request NotchDeck makes, and it sends nothing about you beyond the image request itself. Music artwork comes from the Music app directly.
+
+### Developer agents
+
+- **Only what tools send.** Claude Code, Codex and other tools you set up report their sessions with `notchctl` over a local socket that only your user account can reach ([`SECURITY.md`](SECURITY.md)). NotchDeck never reads terminals, transcripts or the tools' configuration files, and has no network listener.
+- **What a message can contain:** the tool's name, its session ID, a project name, the workspace path, a task, a status, a short status message, progress, and the bundle ID of the terminal or editor the tool runs in.
+- **Kept in memory only**, while the session is shown: until it ends or is dismissed, at most an hour after it finishes, and never longer than 8 hours without an update. Quitting NotchDeck or turning Developer agents off forgets every session. Messages are never stored, logged or sent anywhere.
+- **Claude Code and Codex hooks forward as little as possible.** The adapters run inside `notchctl`, in the tool's hook, and read only event names, session IDs, the working directory, tool names, notification types and the tools' own notification text (such as "Claude needs your permission to use Bash"); for Claude Code also a session title you chose yourself (`--name`, `/rename`). Your prompts, commands, file paths and contents, tool output, the agents' replies and transcripts are never forwarded.
+- **Opt-in:** with `--prompt-as-task` in the hook command, the first line of each prompt (up to 240 characters) is shown as the session's task. Setup: [Claude Code](docs/integrations/claude-code.md), [Codex](docs/integrations/codex.md).
+- **The notch is on screen.** Tasks and status messages appear on the notch and in screen shares and recordings, so integrations should never send secrets. Turn off **Settings ▸ Features ▸ Developer agents** to stop listening altogether.
 
 ## For Contributors
 

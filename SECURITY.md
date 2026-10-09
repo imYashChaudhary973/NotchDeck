@@ -18,11 +18,21 @@ A dedicated reporting channel has not been set up yet.
 
 ### Local IPC
 
-- Developer-agent integrations (Phase 5) **must use secure local IPC**.
+- Developer-agent integrations **must use secure local IPC**.
 - NotchDeck must **never expose an unauthenticated network listener**, on any interface — including `localhost`.
 - Prefer transports that are inherently local and permissioned (e.g. XPC, Unix domain sockets with restrictive file permissions) and authenticate peers.
 - A local HTTP transport (mentioned as an option in the engineering plan) is only acceptable if it is loopback-only **and** authenticated, and requires an ADR.
 - Treat every message from another process as untrusted input.
+
+**What is implemented** ([ADR 0008](docs/decisions/0008-developer-activity-bridge.md), [protocol](docs/developer-activity-protocol.md)): the developer activity bridge is the only IPC endpoint NotchDeck exposes.
+
+- A Unix domain socket at `~/Library/Application Support/NotchDeck/Bridge/bridge.sock`. The directory is mode `0700` and must be a real directory owned by the user (not a symlink), or the bridge doesn't start; the socket is mode `0600`. There is no network listener of any kind.
+- Each connection's peer user ID is checked with `getpeereid`; connections from other users are closed unread. There are no tokens to leak.
+- One message per connection, at most 16 KiB, which must arrive within 2 seconds; at most 8 connections at once. Messages are decoded with `Codable` into a versioned schema, identifiers are checked against fixed character sets and lengths, workspace paths must be absolute, and free text is stripped of control and bidirectional-override characters and truncated. Unknown versions are rejected; message contents are never logged.
+- The listener runs only while Developer agents is on in Settings. A stale socket is replaced only if it is a socket that no longer answers; nothing else at the path is ever touched.
+- Received values are never executed. A workspace is opened in Finder or Terminal only after checking that it is an existing directory, and only known, running terminal or editor apps are brought forward by bundle ID.
+- The only client is `notchctl`, bundled in the app. Its hook adapters run in `notchctl`, not in NotchDeck, and forward no prompts, commands or file contents unless the user opts in.
+- Any process running as the same user can send messages, as it could to every other per-user resource. Verifying the peer's code signature is planned once NotchDeck is Developer ID-signed; the socket moves into an app group container with the App Sandbox ([ADR 0003](docs/decisions/0003-app-runtime-configuration.md)).
 
 ### Input validation
 

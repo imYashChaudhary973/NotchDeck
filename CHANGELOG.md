@@ -8,6 +8,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
+- Phase 5 — Claude Code, Codex and the generic developer activity protocol:
+  - [Developer activity protocol](docs/developer-activity-protocol.md) v1: one versioned JSON message per connection (`event`, `end`, `ping`; nine statuses from `starting` to `cancelled`), validated as untrusted input. Any tool can report sessions; nothing reads terminal screens.
+  - Local bridge: a Unix domain socket in `~/Library/Application Support/NotchDeck/Bridge` (directory 0700, socket 0600), connections only from the same user (`getpeereid`), bounded in size, time and concurrency. No network listener. Event-driven; free while idle.
+  - `notchctl`, bundled in the app: `agent start|update|working|command|waiting|input|permission|complete|fail|cancel|end`, `send` (raw JSON), `hook <adapter>`, `ping`, with `sysexits` exit codes. Settings shows its path and a symlink command.
+  - Claude Code hooks (`notchctl hook claude-code`), Codex lifecycle hooks (`codex`) and Codex `notify` (`codex-notify`) adapters. Prompts, commands, tool input and transcripts are never forwarded (`--prompt-as-task` opts in to a prompt's first line). Setup guides in [`docs/integrations/`](docs/integrations/).
+  - Developer agents feature (on by default): one activity per session. Working agents sit above music but below a running timer or an upcoming meeting; agents needing input or permission auto-peek; finished and failed sessions briefly show on the notch, then wait in the command center. Live elapsed time, agent cards with Open Terminal, Open Workspace and Dismiss. Stale sessions are removed.
+  - New `agent` content style and `elapsed` compact accessory; Debug panel buttons for simulated agents.
+  - [ADR 0008](docs/decisions/0008-developer-activity-bridge.md). 281 new unit tests (596 total).
+
 - Phase 4 — File Shelf and clipboard history:
   - Drops on the notch go through the Activity Engine (`acceptsDrops`, `handleDrop`, `routeDrop`); the notch window stays owned by `NotchController`. The shelf opens as a content drag approaches the notch, before macOS would open the Spaces bar.
   - File Shelf: files, folders, links, text, dropped images and file promises. Three drop tiles (Shelf, Copy, AirDrop). Files are referenced with bookmarks, never copied; missing files are shown as such. Items expire after an hour or at the end of the day, can be kept longer per item or pinned. Drag items out into any app; Quick Look, Open, Copy, Show in Finder, Share, Remove. Quick Look thumbnails at notch size.
