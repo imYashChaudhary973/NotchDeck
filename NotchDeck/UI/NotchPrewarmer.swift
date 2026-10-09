@@ -143,6 +143,18 @@ enum NotchPrewarmer {
             sample("progress", .fileTransfer, .active, ActivityPresentation(
                 symbolName: "arrow.down.circle", accent: .blue, compactAccessory: .progress
             ), progress: 0.4),
+            sample("agent", .agent, ActivityPriority(rawValue: 25), ActivityPresentation(
+                symbolName: "asterisk", accent: .orange, compactAccessory: .elapsed(since: now.addingTimeInterval(-768)),
+                statusText: "Working",
+                content: .agent(AgentContent(
+                    providerName: "Claude Code", shortName: "Claude", project: "Rove", task: "Implement tab management",
+                    message: "Running tests", statusText: "Working", tone: .working, startedAt: now.addingTimeInterval(-768)
+                ))
+            ), progress: 0.6, actions: [
+                ActivityAction(id: "terminal", title: "Open Terminal", systemImage: "terminal"),
+                ActivityAction(id: "workspace", title: "Open Workspace", systemImage: "folder"),
+                ActivityAction(id: "dismiss", title: "Dismiss", systemImage: "xmark"),
+            ]),
             sample("attention", .agent, .attentionRequired, ActivityPresentation(
                 symbolName: "sparkle", accent: .orange, compactAccessory: .symbol("exclamationmark"),
                 statusText: "Needs approval"

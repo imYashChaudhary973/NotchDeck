@@ -74,6 +74,16 @@ struct ExpandedView: View {
     }
 }
 
+private extension CompactAccessory {
+    /// Time the system keeps ticking (a countdown or elapsed time).
+    var isLiveTime: Bool {
+        switch self {
+        case .countdown, .elapsed: true
+        case .text, .symbol, .progress: false
+        }
+    }
+}
+
 private extension View {
     func cardBackground() -> some View {
         padding(12)
@@ -148,6 +158,8 @@ private struct FeaturedCard: View {
             }
         case .collection(let collection):
             CollectionFeatured(activity: activity, collection: collection, model: model)
+        case .agent(let agent):
+            AgentCard(activity: activity, agent: agent, model: model)
         default:
             StandardFeatured(activity: activity, model: model)
         }
@@ -323,7 +335,7 @@ private struct StandardFeatured: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .center, spacing: 10) {
                 FeaturedHeader(activity: activity)
-                if case .countdown = activity.presentation.compactAccessory {
+                if activity.presentation.compactAccessory?.isLiveTime == true {
                     CompactAccessoryView(activity: activity, fontSize: 20)
                         .frame(maxWidth: 90, alignment: .trailing)
                 }
@@ -553,7 +565,7 @@ private struct WidgetRow: View {
         HStack(spacing: 10) {
             IconTile(presentation: activity.presentation, size: 22)
             if !isActionRow {
-                Text(activity.title)
+                Text(title)
                     .font(.system(size: 12, weight: .medium))
                     .lineLimit(1)
                     .layoutPriority(1)
@@ -564,13 +576,18 @@ private struct WidgetRow: View {
         .accessibilityElement(children: .combine)
     }
 
+    /// Agents are named "Claude · Rove" here; their status is shown beside it.
+    private var title: String {
+        if case .agent(let agent) = activity.presentation.content { agent.shortTitle } else { activity.title }
+    }
+
     /// Button rows need the room; the icon still identifies them.
     private var isActionRow: Bool {
         if case .actions = activity.presentation.content { true } else { false }
     }
 
-    private var hasCountdown: Bool {
-        if case .countdown = activity.presentation.compactAccessory { true } else { false }
+    private var hasLiveTime: Bool {
+        activity.presentation.compactAccessory?.isLiveTime == true
     }
 
     @ViewBuilder
@@ -613,6 +630,8 @@ private struct WidgetRow: View {
             }
         case .collection(let collection):
             CollectionWidgetTrailing(activity: activity, collection: collection)
+        case .agent(let agent):
+            AgentWidgetTrailing(activity: activity, agent: agent, model: model)
         case .schedule:
             // The next entry ("11:00 Design Review").
             if let subtitle = activity.subtitle {
@@ -623,7 +642,7 @@ private struct WidgetRow: View {
             }
         case .standard:
             // A ticking countdown says more than a static subtitle (e.g. a running timer).
-            if hasCountdown {
+            if hasLiveTime {
                 CompactAccessoryView(activity: activity, fontSize: 11)
                     .fixedSize()
             } else if let subtitle = activity.subtitle {
@@ -634,7 +653,7 @@ private struct WidgetRow: View {
             }
             if let action = activity.actions.first {
                 CapsuleActionButton(action: action, compact: true) { model.perform(action, on: activity) }
-            } else if !hasCountdown {
+            } else if !hasLiveTime {
                 CompactAccessoryView(activity: activity, fontSize: 11)
             }
         }
@@ -703,7 +722,8 @@ private struct ToggleRow: View {
     }
 }
 
-private struct CapsuleActionButton: View {
+/// An activity action as a capsule with an icon and title (title only when `compact`).
+struct CapsuleActionButton: View {
     let action: ActivityAction
     var compact = false
     let perform: () -> Void

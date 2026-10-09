@@ -22,6 +22,7 @@ final class AppEnvironment {
     let calendar: CalendarProvider
     let shelf: ShelfProvider
     let clipboard: ClipboardProvider
+    let developer: DeveloperActivityProvider
 
     #if DEBUG
     let debugProvider = DebugActivityProvider()
@@ -56,6 +57,7 @@ final class AppEnvironment {
             lifetime: { settings.shelfItemLifetime }
         )
         clipboard = ClipboardProvider(configuration: { settings.clipboardConfiguration })
+        developer = DeveloperActivityProvider(source: DeveloperBridgeServer(), workspace: SystemDeveloperWorkspace())
 
         notchController.onOpenSettings = { [weak self] in self?.showSettings() }
         timers.onRequestCustomDuration = { [weak self] in self?.showCustomTimer() }
@@ -109,6 +111,7 @@ final class AppEnvironment {
         case .calendar: calendar
         case .shelf: shelf
         case .clipboard: clipboard
+        case .developerActivity: developer
         }
     }
 
@@ -137,7 +140,7 @@ final class AppEnvironment {
                 // Shelf items are temporary; turning the shelf off removes them. Clipboard history
                 // is kept until the user clears it in Settings.
                 case .shelf: shelf.removeAll()
-                case .systemMetrics, .audio, .quickActions, .music, .calendar, .clipboard: break
+                case .systemMetrics, .audio, .quickActions, .music, .calendar, .clipboard, .developerActivity: break
                 }
                 engine.unregister(provider.source)
             }
@@ -247,7 +250,7 @@ final class AppEnvironment {
     #if DEBUG
     func showDebugPanel() {
         windows.show(id: "debug", title: "Debug Activities") {
-            DebugPanelView(provider: self.debugProvider, engine: self.engine, notch: self.notchController)
+            DebugPanelView(provider: self.debugProvider, developer: self.developer, engine: self.engine, notch: self.notchController)
         }
     }
     #endif

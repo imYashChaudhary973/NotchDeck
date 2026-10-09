@@ -91,6 +91,8 @@ struct SettingsView: View {
 
             ClipboardSettingsSection(settings: settings, clipboard: clipboard)
 
+            DeveloperSettingsSection(settings: settings)
+
             Section("About") {
                 LabeledContent("Version", value: Bundle.main.versionDescription)
             }
@@ -113,6 +115,7 @@ private extension SettingsView {
         case .calendar: $settings.calendarEnabled
         case .shelf: $settings.shelfEnabled
         case .clipboard: $settings.clipboardEnabled
+        case .developerActivity: $settings.developerActivityEnabled
         }
     }
 }
@@ -267,6 +270,61 @@ private struct ClipboardSettingsSection: View {
         for url in panel.urls {
             if let bundleID = Bundle(url: url)?.bundleIdentifier {
                 settings.clipboardExcludedBundleIDs.insert(bundleID)
+            }
+        }
+    }
+}
+
+/// Where `notchctl` is and how to put it on the user's `PATH`.
+enum NotchctlInstallation {
+    /// The command-line tool inside the app bundle.
+    static func bundledURL(in bundle: Bundle = .main) -> URL {
+        bundle.bundleURL.appending(path: "Contents/MacOS/notchctl", directoryHint: .notDirectory)
+    }
+
+    /// `ln -sf "<path>" /usr/local/bin/notchctl`, with the path quoted for the shell.
+    static func installCommand(for url: URL) -> String {
+        var quoted = ""
+        for character in url.path(percentEncoded: false) {
+            // Characters that keep a special meaning inside double quotes.
+            if "\\\"$`".contains(character) { quoted.append("\\") }
+            quoted.append(character)
+        }
+        return "ln -sf \"\(quoted)\" /usr/local/bin/notchctl"
+    }
+}
+
+/// Where to find `notchctl`, the command coding tools use to report to NotchDeck.
+private struct DeveloperSettingsSection: View {
+    @Bindable var settings: AppSettings
+
+    var body: some View {
+        let path = NotchctlInstallation.bundledURL().path(percentEncoded: false)
+        let command = NotchctlInstallation.installCommand(for: NotchctlInstallation.bundledURL())
+        Section {
+            copyableRow("Command-line tool", value: path)
+            copyableRow("Install with", value: command)
+        } header: {
+            Text("Developer Agents")
+        } footer: {
+            Text("Claude Code, Codex and other coding tools report their sessions with notchctl, over a local socket only you can reach. The README's Developer agents section shows how to set up their hooks.")
+                .foregroundStyle(.secondary)
+        }
+        .disabled(!settings.developerActivityEnabled)
+    }
+
+    private func copyableRow(_ title: String, value: String) -> some View {
+        LabeledContent {
+            Button("Copy") { SystemPasteboardWriter().write(.text(value)) }
+        } label: {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                Text(value)
+                    .font(.caption.monospaced())
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+                    .truncationMode(.middle)
+                    .textSelection(.enabled)
             }
         }
     }

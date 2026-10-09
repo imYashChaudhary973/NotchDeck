@@ -189,7 +189,7 @@ private struct PinBadge: View {
 }
 
 /// An activity action drawn as a small icon button (the title is its tooltip and accessibility label).
-private struct IconActionButton: View {
+struct IconActionButton: View {
     let action: ActivityAction
     let perform: () -> Void
 

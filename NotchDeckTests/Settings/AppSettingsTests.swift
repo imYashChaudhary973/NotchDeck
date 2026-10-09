@@ -48,6 +48,8 @@ struct AppSettingsTests {
         // Clipboard history keeps what the user copies, so it is opt-in.
         #expect(!settings.isEnabled(.clipboard))
         #expect(Feature.allCases.filter { $0 != .calendar && $0 != .clipboard }.allSatisfy(settings.isEnabled))
+        // Developer agents only listen on a user-only local socket, so they are on by default.
+        #expect(settings.isEnabled(.developerActivity))
         #expect(!settings.scrollAdjustsVolume)
         #expect(settings.timerPlaysSound)
         defaults.removePersistentDomain(forName: suiteName)
@@ -64,6 +66,33 @@ struct AppSettingsTests {
         #expect(reloaded.isEnabled(.timers))
         #expect(reloaded.scrollAdjustsVolume)
         defaults.removePersistentDomain(forName: suiteName)
+    }
+
+    @Test func developerAgentsToggleUsesItsKeyAndPersists() {
+        #expect(AppSettings.Key.developerActivityEnabled == "features.developerActivity.enabled")
+        #expect(Feature.developerActivity.title == "Developer agents")
+        let settings = AppSettings(defaults: defaults)
+        settings.developerActivityEnabled = false
+
+        let reloaded = AppSettings(defaults: defaults)
+
+        #expect(!reloaded.isEnabled(.developerActivity))
+        #expect(defaults.object(forKey: AppSettings.Key.developerActivityEnabled) as? Bool == false)
+        defaults.removePersistentDomain(forName: suiteName)
+    }
+
+    @Test func notchctlInstallCommandPointsAtTheBundledTool() {
+        let app = Bundle.main.bundleURL
+        #expect(NotchctlInstallation.bundledURL().path == app.appending(path: "Contents/MacOS/notchctl").path)
+
+        let url = URL(filePath: "/Applications/Notch Deck.app/Contents/MacOS/notchctl")
+        #expect(NotchctlInstallation.installCommand(for: url)
+            == #"ln -sf "/Applications/Notch Deck.app/Contents/MacOS/notchctl" /usr/local/bin/notchctl"#)
+
+        // Characters that stay special inside double quotes are escaped.
+        let odd = URL(filePath: #"/Apps/A "$x`\.app/Contents/MacOS/notchctl"#)
+        #expect(NotchctlInstallation.installCommand(for: odd)
+            == #"ln -sf "/Apps/A \"\$x\`\\.app/Contents/MacOS/notchctl" /usr/local/bin/notchctl"#)
     }
 
     @Test func stringValuesFromLaunchArgumentsAreAccepted() {

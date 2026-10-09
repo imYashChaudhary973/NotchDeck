@@ -42,6 +42,7 @@ struct NotchPrewarmerTests {
         case .actions: "actions"
         case .schedule: "schedule"
         case .collection: "collection"
+        case .agent: "agent"
         }
     }
 
@@ -50,6 +51,7 @@ struct NotchPrewarmerTests {
         case .text: "text"
         case .symbol: "symbol"
         case .countdown: "countdown"
+        case .elapsed: "elapsed"
         case .progress: "progress"
         case nil: nil
         }
@@ -59,9 +61,9 @@ struct NotchPrewarmerTests {
     @Test func samplesCoverEveryPresentationStyle() {
         let samples = NotchPrewarmer.sampleActivities()
         #expect(Set(samples.map { contentStyle($0.presentation.content) })
-            == ["standard", "media", "level", "metric", "toggle", "actions", "schedule", "collection"])
+            == ["standard", "media", "level", "metric", "toggle", "actions", "schedule", "collection", "agent"])
         #expect(Set(samples.compactMap { accessoryStyle($0.presentation.compactAccessory) })
-            == ["text", "symbol", "countdown", "progress"])
+            == ["text", "symbol", "countdown", "elapsed", "progress"])
         #expect(samples.contains { $0.priority.requestsAttention && $0.presentation.statusText != nil })
         #expect(samples.contains { $0.presentation.options != nil })
         // Artwork is drawn as an image, not a symbol, so it has its own first-render cost.
