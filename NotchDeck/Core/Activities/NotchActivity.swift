@@ -49,6 +49,8 @@ enum CompactAccessory: Equatable, Sendable {
     case symbol(String)
     /// A live countdown to the given date, rendered by the system without app-side timers.
     case countdown(to: Date)
+    /// Live elapsed time since the given date ("12:48"), rendered by the system without app-side timers.
+    case elapsed(since: Date)
     /// A progress ring using the activity's `progress`.
     case progress
 }
@@ -344,6 +346,66 @@ struct CollectionContent: Equatable, Sendable {
     }
 }
 
+/// A coding agent's session, such as Claude Code working on a project: who, where, what, how it is
+/// going and for how long. The activity's `progress` and `actions` complete the picture.
+struct AgentContent: Equatable, Sendable {
+    /// How the session is doing, which picks the status color in the UI layer.
+    enum Tone: Sendable {
+        /// Busy on its own.
+        case working
+        /// Blocked until the user acts.
+        case attention
+        case success
+        case failure
+        /// Neither busy nor blocked, e.g. waiting or cancelled.
+        case neutral
+    }
+
+    /// The tool's full name, e.g. "Claude Code".
+    var providerName: String
+    /// A short name for tight spaces, e.g. "Claude".
+    var shortName: String
+    var project: String?
+    /// What the session is working on, e.g. "Implement tab management".
+    var task: String?
+    /// The tool's latest status message, e.g. "Claude needs your permission to use Bash".
+    var message: String?
+    /// A short status, e.g. "Working" or "Needs permission".
+    var statusText: String
+    var tone: Tone
+    /// When the current task started; the elapsed time counts from here.
+    var startedAt: Date
+    /// When set, the elapsed time stops at this date (the session finished).
+    var endedAt: Date?
+
+    init(
+        providerName: String,
+        shortName: String? = nil,
+        project: String? = nil,
+        task: String? = nil,
+        message: String? = nil,
+        statusText: String,
+        tone: Tone,
+        startedAt: Date,
+        endedAt: Date? = nil
+    ) {
+        self.providerName = providerName
+        self.shortName = shortName ?? providerName
+        self.project = project
+        self.task = task
+        self.message = message
+        self.statusText = statusText
+        self.tone = tone
+        self.startedAt = startedAt
+        self.endedAt = endedAt
+    }
+
+    /// "Claude · Rove", or the provider name alone when the project is unknown.
+    var shortTitle: String {
+        project.map { "\(shortName) · \($0)" } ?? providerName
+    }
+}
+
 /// The kind of content an activity carries, which selects how the notch draws it in detail.
 enum ActivityContent: Equatable, Sendable {
     case standard
@@ -354,6 +416,7 @@ enum ActivityContent: Equatable, Sendable {
     case actions(ActionsContent)
     case schedule(ScheduleContent)
     case collection(CollectionContent)
+    case agent(AgentContent)
 }
 
 /// A choice among a few options, such as the audio output device. Shown as a list on the

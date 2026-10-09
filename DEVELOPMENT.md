@@ -58,9 +58,27 @@ open build/DerivedData/Build/Products/Debug/NotchDeck.app
 
 NotchDeck is an accessory app: there is no Dock icon or main window. Look for the notch surface and the menu bar item (Settings…, Debug Activities…, Quit).
 
+The build also produces `notchctl`, embedded at `NotchDeck.app/Contents/MacOS/notchctl`.
+
+### Developer agents and `notchctl`
+
+With a build running, drive the developer activity bridge from a terminal (protocol: [`docs/developer-activity-protocol.md`](docs/developer-activity-protocol.md)):
+
+```bash
+NOTCHCTL=build/DerivedData/Build/Products/Debug/NotchDeck.app/Contents/MacOS/notchctl
+$NOTCHCTL ping                                      # NotchDeck is listening.
+$NOTCHCTL agent working --provider claude-code --session demo --task "Implement tabs"
+$NOTCHCTL agent permission --provider codex --session s2 --message "Approve running tests"
+$NOTCHCTL agent complete --provider codex --session s2
+$NOTCHCTL agent end --provider claude-code --session demo
+echo '{"session_id":"demo","hook_event_name":"Stop","cwd":"'"$PWD"'"}' | $NOTCHCTL hook claude-code
+```
+
+`NOTCHDECK_SOCKET=/path/to.sock` points `notchctl` (only) at another socket; the tests use it with a server on a short temporary path. To try real Claude Code or Codex sessions against a development build, point their hooks at the built `notchctl` ([`docs/integrations/`](docs/integrations/)).
+
 ### Debug Activities panel
 
-Debug builds include a developer-only panel that simulates activities (Music, Meeting, Timer, File Transfer, Claude Waiting, Clipboard, Critical) and drives notch states (Attention Peek, Expand, Shelf, Collapse). It lists live activities with their priorities.
+Debug builds include a developer-only panel that simulates activities (Music, Meeting, Timer, File Transfer, Clipboard, Critical) and drives notch states (Attention Peek, Expand, Shelf, Collapse). It lists live activities with their priorities. Its Developer Agents section (Claude Working, Claude Permission, Claude Finished, Codex Working, Codex Needs Input, Agent Failed, End Agents) feeds protocol messages into the real `DeveloperActivityProvider`, so Developer agents must be on.
 
 - Open from the menu bar item: **Debug Activities…**, or
 - launch with `--args -NotchDeckShowDebugPanel YES`.
@@ -72,7 +90,7 @@ Useful launch arguments (they override stored settings for that run):
 | `-NotchDeckShowDebugPanel YES` | Open the debug panel at launch (Debug builds) |
 | `-notch.displayPreference primary` | Put the notch on the primary display (test the virtual notch on external monitors) |
 | `-audio.scrollAdjustsVolume YES` | Turn on scroll-over-the-notch volume for that run |
-| `-features.<timers\|keepAwake\|systemMetrics\|audio\|quickActions\|music\|shelf>.enabled NO` | Turn a feature off for that run |
+| `-features.<timers\|keepAwake\|systemMetrics\|audio\|quickActions\|music\|shelf\|developerActivity>.enabled NO` | Turn a feature off for that run |
 | `-features.calendar.enabled YES` | Turn Calendar on for that run (shows the Allow Access row; does not prompt) |
 | `-features.clipboard.enabled YES` | Turn clipboard history on for that run (records copies made after launch) |
 | `-shelf.opensOnApproach NO` | The shelf opens only when a drag reaches the notch itself |
@@ -141,4 +159,5 @@ To exercise Now Playing without playing music, post the notification Music sends
 - **Stale build behavior:** delete DerivedData for the project (`~/Library/Developer/Xcode/DerivedData/NotchDeck-*`, or `build/` if you used `-derivedDataPath build/DerivedData`).
 - **`warning: Metadata extraction skipped, no AppIntents.framework dependency found`:** harmless toolchain notice; not caused by project code.
 - **Notch not visible / on the wrong display:** check Settings ▸ Notch ▸ Display. With "Automatic", a connected built-in notched display wins over the primary display.
-- **Two NotchDecks running:** quit the old one (menu bar item ▸ Quit) before launching a new build; both would draw over the notch.
+- **Two NotchDecks running:** quit the old one (menu bar item ▸ Quit) before launching a new build; both would draw over the notch. The second one also can't open the developer bridge socket and shows "Developer bridge unavailable" in the command center.
+- **`notchctl` exits 69 ("NotchDeck isn't listening"):** NotchDeck isn't running, or Settings ▸ Features ▸ Developer agents is off. The socket is `~/Library/Application Support/NotchDeck/Bridge/bridge.sock`.

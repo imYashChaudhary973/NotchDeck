@@ -2,7 +2,7 @@
 
 > The phase-by-phase brief behind this architecture is [`docs/development/engineering-plan.md`](docs/development/engineering-plan.md).
 
-> **Status: Phase 4 implemented.** The notch foundation, Activity Engine and state machine (Phase 1), the local utility providers — Timers, Keep Awake, System Metrics, Audio, Quick Actions (Phase 2) — Now Playing (Apple Music, Spotify) and Calendar (Phase 3), and the File Shelf and clipboard history (Phase 4) exist and are unit tested. Sections marked *(planned)* describe later phases.
+> **Status: Phase 5 implemented.** The notch foundation, Activity Engine and state machine (Phase 1), the local utility providers — Timers, Keep Awake, System Metrics, Audio, Quick Actions (Phase 2) — Now Playing (Apple Music, Spotify) and Calendar (Phase 3), the File Shelf and clipboard history (Phase 4), and developer agent activity through the generic developer activity protocol and `notchctl` (Phase 5) exist and are unit tested. Sections marked *(planned)* describe later phases.
 
 ## Core Principle
 
@@ -66,7 +66,7 @@ The **resting state** is `liveActivity` when there is a primary activity, otherw
 | State | Surface |
 | --- | --- |
 | `idle` | Exactly the physical notch (or a 180 pt virtual notch on displays without one). |
-| `liveActivity` | Notch plus a 52 pt "ear" on each side: glyph pinned to the leading edge, accessory (countdown, progress ring, symbol) to the trailing edge. |
+| `liveActivity` | Notch plus a 52 pt "ear" on each side: glyph pinned to the leading edge, accessory (countdown, elapsed time, progress ring, symbol) to the trailing edge. |
 | `peek` | 420 pt wide: icon tile and status beside the notch, then title and subtitle — or a segmented level bar for `level` content (volume HUD). |
 | `expanded` | The **command center**, 600 pt wide, height fits its content (56–300 pt below the notch row). Section tabs sit beside the notch; the featured activity gets a large card and the next four go in a widget column. See below. |
 | `shelf` | Drop target with three tiles (Shelf / Copy / AirDrop) and the dragged item's name; the tile under the pointer highlights, and a drop anywhere else keeps the item on the shelf. Entered only while a provider accepts drops; it also opens as a drag approaches the notch (see *Drops*). |
@@ -93,8 +93,11 @@ Providers choose how their activity is drawn in detail through `ActivityPresenta
 | `.actions(ActionsContent)` | Tile grid on the featured card, button row in the widget column | Quick Actions, timer presets |
 | `.schedule(ScheduleContent)` | List of timed entries (time, calendar color, title, Now, Join) on the featured card; the subtitle in the widget column | calendar schedule |
 | `.collection(CollectionContent)` | Items as a horizontal strip of tiles or as rows, each clickable, with a context menu (actions, Share) and draggable out when it has a payload; the first thumbnails in the widget column | File Shelf, clipboard history |
+| `.agent(AgentContent)` | Agent card: provider, project, task, a colored status dot (`Tone`: working, attention, success, failure, neutral), elapsed time (frozen at `endedAt`), progress, actions; "Claude · Rove" and status in the widget column | developer agent sessions |
 
 `.level` can be interactive: with `adjustActionID` the bar is draggable, and with `muteActionID` it gets a mute button. `ActivityPresentation.options` adds a selectable list to the featured card (output devices).
+
+`CompactAccessory.elapsed(since:)` shows time since a date in the trailing ear. Like `.countdown`, it is drawn by `Text(timerInterval:)`, so the app runs no timer for it.
 
 Controls (transport buttons, switches, tiles, options) invoke action IDs that the engine routes back to the owning provider (`ActivityEngine.perform(actionID:on:)`). Continuous controls send a `0…1` value through `ActivityEngine.adjust(actionID:to:on:)`. `statusText` is a short status for Peek (e.g. "Needs approval"); `revealsOnUpdate` makes HUD-style activities briefly reveal the notch on every update (`NotchController.shouldReveal`).
 
@@ -127,6 +130,7 @@ Phase 4 ([ADR 0007](docs/decisions/0007-shelf-and-clipboard.md)) routes content 
 | `CalendarProvider` | `calendar` | The next meeting on the notch (30 → 40 → 50 as it approaches), the schedule (`.commandCenter`), an access row while not allowed | EventKit (full access, asked when the feature is turned on) | At the next rule boundary or event start/end; once a minute while a countdown is on the notch; EventKit queried on changes and every 6 h |
 | `ShelfProvider` | `shelf` | The shelf's items (`.commandCenter`, 25, `.collection` tiles); a 2.5 s "Added to Shelf" / "Copied" confirmation on the notch after a drop | Bookmarks, `NSFilePromiseReceiver`, `QLThumbnailGenerator`, `QLPreviewPanel`, `NSWorkspace`, `NSSharingService` (AirDrop) | Only at the next item expiry |
 | `ClipboardProvider` | `clipboard` | Recent clipboard entries (`.commandCenter`, 16, `.collection` rows); an access row when macOS doesn't allow reading. Off by default. | `NSPasteboard` change count, then contents only after a change; `accessBehavior` (macOS 15.4+) | Once a second while on, not paused and the screens are awake; once at the next retention expiry |
+| `DeveloperActivityProvider` | `developer` | One `.agent` activity per developer tool session (working 25, waiting 30, needs input/permission 50; finished sessions move to the command center); a "Developer bridge unavailable" row with Retry if the socket can't be opened | A Unix domain socket (`DeveloperBridgeServer`); `NSRunningApplication`, `NSWorkspace` for the session actions | Only when a message arrives, and once at the next rule boundary |
 
 Timer priorities: running 30, last minute 35, last 10 s 40, finished 50 (for 10 s, then removed), paused 20. Running timers store their end date, so they stay accurate across sleep and relaunch; the countdown is drawn by `Text(timerInterval:)`.
 
@@ -176,9 +180,38 @@ Quick actions implement the `QuickAction` protocol (`id`, `title`, `symbolName`,
 - **Storage** (`ClipboardStoring`, `ClipboardDirectoryStore`): `~/Library/Application Support/NotchDeck/Clipboard/history.json` and an `Images` directory, written a second after the last change.
 - **UI**: the command center lists the five most recent entries (pinned first) with Search History, Pause and Clear; the History window (`ClipboardHistoryView`) searches every entry.
 
+### Developer agents: `DeveloperActivityProvider`
+
+Phase 5 ([ADR 0008](docs/decisions/0008-developer-activity-bridge.md)). The app speaks one tool-neutral protocol, the [developer activity protocol](docs/developer-activity-protocol.md); nothing in the app knows Claude Code or Codex beyond a display name and symbol.
+
+```text
+Claude Code / Codex hook ─▶ notchctl hook <adapter> ─┐
+any tool or script ───────▶ notchctl agent|send ─────┼─▶ bridge.sock ─▶ DeveloperBridgeServer ─▶ DeveloperActivityProvider ─▶ engine
+                                                     ┘   (JSON, v1)      (DeveloperEventSource)
+```
+
+- **Transport** (`Services/DeveloperBridge`): a Unix domain socket at `~/Library/Application Support/NotchDeck/Bridge/bridge.sock`, mode 0600 in a 0700 directory. A connection is closed unread unless `getpeereid` reports the user's own uid. One JSON object (at most 16 KiB) per connection, ended by a newline or EOF, read within 2 s; one JSON response. At most 8 connections at once. Dispatch sources wake the listener only on connections, so it costs nothing idle. A stale socket is replaced; a socket another NotchDeck answers on, or a file that isn't a socket, is left alone. No network listener, no tokens.
+- **Protocol** (`Shared/DeveloperProtocol`, compiled into the app and `notchctl`): `DeveloperBridgeMessage` (version 1; type `event`, `end` or `ping`), validated as untrusted input: strict ID patterns, sanitized and truncated text (control and bidi characters removed), absolute standardized workspace paths, progress 0…1.
+- **`notchctl`** (`notchctl/`, `Shared/CommandLine`): a command-line tool embedded at `NotchDeck.app/Contents/MacOS/notchctl`. `agent <event>`, `send`, `hook <adapter>`, `ping`. Exit codes 0, 64 (usage), 65 (invalid message), 69 (NotchDeck not reachable), 70 (rejected or failed). `hook` never disturbs the calling tool: it always exits 0, prints nothing to standard output and gives up after ~1 s.
+- **Tool adapters** (`Shared/AgentAdapters`): `claude-code` (Claude Code hooks), `codex` (Codex lifecycle hooks) and `codex-notify` (Codex's legacy `notify`) translate a tool's hook payload into protocol messages inside `notchctl`, so tool- and version-specific parsing stays out of the app. They never forward prompts, tool input or transcripts (`--prompt-as-task` opts in to the prompt's first line). They are compiled into the app only so they can be unit tested.
+- **Sessions** (`DeveloperSessionCollection`, pure): keyed by provider + session ID, else workspace, else project; at most 12. Fields a message leaves out keep their values; a finished session that becomes active again starts a new task.
+- **Rules** (`DeveloperActivityRules`, pure):
+
+| Status | On the notch | Then |
+| --- | --- | --- |
+| starting, working, running command | 25 (above music, below a running timer or a meeting 15 min away) | removed after 30 min without an update |
+| waiting | 30 | removed after 30 min without an update |
+| needs input, needs permission | 50 (auto-peek) | removed after 8 h without an update |
+| completed | 30 for 10 s ("Rove finished") | command center (15) until dismissed, at most 1 h |
+| failed | 50 for 30 s | command center (18) until dismissed, at most 1 h |
+| cancelled | 20 for 5 s | removed |
+
+- **Actions**: Open Terminal brings forward the session's terminal or editor if it is on an allowlist (`DeveloperApps`) and running, otherwise opens the workspace in Terminal; Open Workspace shows it in Finder; Dismiss removes the session. Workspace paths are opened only when absolute, existing directories (symlinks resolved) that aren't packages.
+- **Setting**: Settings ▸ Features ▸ Developer agents, on by default. While off, the provider is unregistered and the socket is closed and removed.
+
 ### Context resolution
 
-Competing activities are resolved by priority alone; Phase 3 needed no resolver change ([ADR 0006](docs/decisions/0006-media-and-calendar-providers.md)). Music (20) is interrupted by a meeting within 15 minutes (30). The meeting escalates to 40 and then 50, which peeks once. When it leaves the notch (grace over, joined or dismissed), music is primary again. A running timer (30) keeps the notch against an upcoming meeting (30) until the meeting reaches 40. Paused music is in the command center and never comes back to the notch. `ContextResolutionTests` cover these sequences with the real providers.
+Competing activities are resolved by priority alone; Phase 3 needed no resolver change ([ADR 0006](docs/decisions/0006-media-and-calendar-providers.md)). Music (20) is interrupted by a meeting within 15 minutes (30). The meeting escalates to 40 and then 50, which peeks once. When it leaves the notch (grace over, joined or dismissed), music is primary again. A running timer (30) keeps the notch against an upcoming meeting (30) until the meeting reaches 40. A working agent (25) takes the notch from music but never from a running timer or a meeting 15 minutes away; an agent that needs input or permission (50) beats a meeting 5 minutes away (40). Paused music is in the command center and never comes back to the notch. `ContextResolutionTests` cover these sequences with the real providers.
 
 Each feature can be turned off in Settings ▸ Features. `AppEnvironment` registers a provider only while its feature is on. Turning a feature off unregisters it, cancelling timers, releasing Keep Awake or emptying the shelf (clipboard history is kept until cleared in Settings). Quitting keeps saved timers and an active Keep Awake session for the next launch.
 
@@ -254,9 +287,13 @@ Provider rules:
 App            Entry point (MenuBarExtra), AppDelegate, AppEnvironment (composition root), auxiliary windows.
 Core           Activities (model, store, resolver, engine, provider protocol) and Notch (geometry, layout,
                state machine, panel, hosting view, controller, view model).
-Features       Activity providers: Timers, KeepAwake, SystemMetrics, Audio, QuickActions, Music, Calendar, Shelf, Clipboard; DebugActivities (Debug builds only).
-Integrations   Bridges to external apps: MediaApps (Apple Music, Spotify). Planned: Claude Code, Codex (Phase 5).
-Services       Shared system services: LaunchAtLoginService, PasteboardWriter.
+Features       Activity providers: Timers, KeepAwake, SystemMetrics, Audio, QuickActions, Music, Calendar, Shelf, Clipboard,
+               DeveloperActivity; DebugActivities (Debug builds only).
+Integrations   Bridges to external apps: MediaApps (Apple Music, Spotify). Claude Code and Codex are integrated through
+               hook adapters in notchctl (Shared/AgentAdapters), not in the app.
+Services       Shared system services: LaunchAtLoginService, PasteboardWriter, DeveloperBridge (the local socket).
+Shared         Code compiled into both the app and notchctl: DeveloperProtocol, CommandLine, AgentAdapters.
+notchctl       The command-line tool developer tools call.
 UI             SwiftUI views per state (Compact, Peek, Expanded, Shelf) and Components.
 Settings       AppSettings (UserDefaults-backed, Observable) and SettingsView.
 ```
@@ -285,21 +322,33 @@ NotchDeck/
 │   ├── Shelf/               ShelfItem (+ ShelfCollection, ShelfLifetime), ShelfStorage, ShelfSystem, ShelfProvider
 │   ├── Clipboard/           ClipboardHistory, ClipboardCapture (+ ColorParser), ClipboardPasteboard, ClipboardStore,
 │   │                        ClipboardProvider, ClipboardHistoryView
+│   ├── DeveloperActivity/   DeveloperActivity (+ DeveloperSessionCollection), DeveloperActivityRules, DeveloperEventSource,
+│   │                        DeveloperWorkspace (+ DeveloperApps, DeveloperWorkspaceValidator), DeveloperActivityProvider
 │   └── DebugActivities/     DebugActivityProvider, DebugPanelView (#if DEBUG)
 ├── Integrations/
 │   └── MediaApps/           ScriptableMediaApp (+ AppleMusicApp, SpotifyApp), ScriptableMediaProvider,
 │                            AppleScriptRunner, ArtworkLoader
-├── Services/                LaunchAtLoginService, PasteboardWriter
+├── Services/                LaunchAtLoginService, PasteboardWriter,
+│                            DeveloperBridge/ (DeveloperBridgeServer, DeveloperBridgeListener)
 ├── Settings/                AppSettings, SettingsView
 └── UI/
     ├── NotchRootView.swift
     ├── NotchPrewarmer.swift  off-screen first-render warm-up
     ├── Compact/  Peek/  Expanded/  Shelf/
     └── Components/          NotchShape, activity glyph/accessory/progress components
+Shared/                      compiled into NotchDeck and notchctl
+├── DeveloperProtocol/       DeveloperBridgeMessage, DeveloperBridgeLocation (+ TerminalHint), DeveloperBridgeFraming,
+│                            UnixSocket, DeveloperBridgeClient
+├── CommandLine/             NotchctlCommand (parsing), NotchctlOutput (exit codes, help)
+└── AgentAdapters/           AgentHookAdapter (+ registry), AgentHookSupport, ClaudeCodeHookAdapter, CodexHookAdapters
+notchctl/                    main, NotchctlRunner (I/O only)
 NotchDeckTests/
 ├── Activities/              store, resolver, engine, placement, input-routing and context-resolution tests
 ├── Features/                timer, keep awake, system metrics, audio, quick actions, music, media-app parsing,
-│                            calendar rules, meeting links, calendar provider, shelf and clipboard tests (with fakes)
+│                            calendar rules, meeting links, calendar provider, shelf, clipboard and developer activity
+│                            tests (with fakes)
+├── DeveloperBridge/         protocol validation, notchctl parsing, socket server round trips and notchctl end to end
+├── Integrations/            Claude Code and Codex hook adapter tests
 ├── Notch/                   state machine, geometry, layout, compact layout, full-screen visibility, drag description,
 │                            drag approach and drop routing, display, warm-up tests
 └── Settings/                settings persistence tests
@@ -307,14 +356,14 @@ NotchDeckTests/
 
 Future features follow the same pattern: `Features/<Name>/`, plus `Integrations/<Service>/` when an external app or tool is involved. Directories are created when real code needs them.
 
-The Xcode project uses **file-system-synchronized groups**: any file added under `NotchDeck/` or `NotchDeckTests/` is automatically part of its target.
+The Xcode project uses **file-system-synchronized groups**: any file added under `NotchDeck/` or `NotchDeckTests/` is automatically part of its target. Files under `Shared/` belong to both the app and the `notchctl` command-line target, files under `notchctl/` only to the latter; put only `.swift` files there. The app target embeds `notchctl` in `Contents/MacOS`.
 
 ## Open Questions
 
 - App Sandbox and distribution (Developer ID, notarization): revisit before first release ([ADR 0003](docs/decisions/0003-app-runtime-configuration.md)).
 - Security-scoped bookmarks for shelf files once the App Sandbox is enabled ([ADR 0007](docs/decisions/0007-shelf-and-clipboard.md)).
 - Keyboard navigation of the notch surface (Phase 6).
-- Agent IPC transport for Phase 5 (`notchctl` → app; must be local and authenticated — see `SECURITY.md`).
+- Bridge peer checks beyond the user ID (code signature of the connecting process) once NotchDeck is Developer ID signed, and the socket's location under the App Sandbox ([ADR 0008](docs/decisions/0008-developer-activity-bridge.md)).
 
 ## Architecture Decision Records
 
@@ -327,5 +376,6 @@ Significant decisions are recorded in [`docs/decisions/`](docs/decisions/):
 - [0005 — Local utility providers](docs/decisions/0005-local-utility-providers.md)
 - [0006 — Media and calendar providers](docs/decisions/0006-media-and-calendar-providers.md)
 - [0007 — File Shelf and clipboard history](docs/decisions/0007-shelf-and-clipboard.md)
+- [0008 — Developer activity bridge](docs/decisions/0008-developer-activity-bridge.md)
 
 Write an ADR when a decision is hard to reverse, affects multiple domains, or chooses between real alternatives. See [`docs/decisions/README.md`](docs/decisions/README.md) for the template.

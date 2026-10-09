@@ -104,6 +104,81 @@ struct ContextResolutionTests {
         #expect(engine.activity(for: musicKey)?.placement == .commandCenter)
     }
 
+    // MARK: Developer agents
+
+    private func makeDeveloper() -> (DeveloperActivityProvider, FakeDeveloperEventSource) {
+        let events = FakeDeveloperEventSource()
+        let developer = DeveloperActivityProvider(source: events, workspace: FakeDeveloperWorkspace(),
+                                                  now: { [clock] in clock.now }, schedulesWakeUps: false)
+        engine.register(developer)
+        return (developer, events)
+    }
+
+    private func isAgent(_ activity: NotchActivity?) -> Bool {
+        activity?.source == ActivitySource(rawValue: "developer")
+    }
+
+    @Test func aWorkingAgentInterruptsMusicAndMusicReturnsAfterTheFinish() {
+        _ = setUp()
+        let (developer, events) = makeDeveloper()
+
+        events.send(.agent(.working, project: "Rove"))
+        #expect(isAgent(engine.resolution.primary))
+        #expect(engine.resolution.queued.contains { $0.key == musicKey })
+
+        events.send(.agent(.completed))
+        #expect(engine.resolution.primary?.title == "Rove finished")
+
+        clock.advance(by: DeveloperActivityRules.completedNotchDuration)
+        developer.advance()
+        #expect(engine.resolution.primary?.key == musicKey)
+    }
+
+    @Test func aMeetingFifteenMinutesAwayBeatsAWorkingAgent() {
+        let calendar = setUp()
+        let (_, events) = makeDeveloper()
+        move(calendar, toStartOffset: -20 * 60)
+        events.send(.agent(.working, project: "Rove"))
+        #expect(isAgent(engine.resolution.primary))
+
+        // Upcoming (30) outranks an ordinary working agent (25).
+        move(calendar, toStartOffset: -15 * 60)
+        #expect(engine.resolution.primary?.key == meetingKey)
+        #expect(engine.resolution.queued.contains { isAgent($0) })
+
+        // A working agent publishing updates doesn't take it back.
+        events.send(.agent(.runningCommand, message: "swift test"))
+        #expect(engine.resolution.primary?.key == meetingKey)
+    }
+
+    @Test func anAgentNeedingPermissionBeatsAMeetingFiveMinutesAway() {
+        let calendar = setUp()
+        let (_, events) = makeDeveloper()
+        move(calendar, toStartOffset: -5 * 60)
+        events.send(.agent(.working, project: "Rove"))
+        #expect(engine.resolution.primary?.key == meetingKey)
+        #expect(engine.resolution.primary?.priority == .timeSensitive)
+
+        events.send(.agent(.needsPermission, message: "Claude needs your permission to use Bash"))
+        #expect(isAgent(engine.resolution.primary))
+        #expect(engine.resolution.primary?.priority == .attentionRequired)
+
+        // Approved: the agent works on (25) and the meeting (40) has the notch again.
+        events.send(.agent(.working))
+        #expect(engine.resolution.primary?.key == meetingKey)
+    }
+
+    @Test func endingAnAgentThatNeedsYouRestoresMusic() {
+        _ = setUp()
+        let (_, events) = makeDeveloper()
+        events.send(.agent(.needsInput, project: "Rove"))
+        #expect(isAgent(engine.resolution.primary))
+
+        events.send(.ending())
+
+        #expect(engine.resolution.primary?.key == musicKey)
+    }
+
     @Test func aRunningTimerKeepsTheNotchAgainstAnEqualPriorityMeeting() {
         let calendar = setUp()
         engine.publish(makeActivity("timer", source: .testA, priority: .active, kind: .timer))

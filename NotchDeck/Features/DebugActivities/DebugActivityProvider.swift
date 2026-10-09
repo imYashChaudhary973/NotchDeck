@@ -308,24 +308,6 @@ final class DebugActivityProvider: ActivityProvider {
         }
     }
 
-    func simulateAgentAttention() {
-        publish(NotchActivity(
-            id: "agent",
-            source: source,
-            kind: .agent,
-            priority: .attentionRequired,
-            title: "notchview",
-            subtitle: "Claude needs your permission to use Bash",
-            presentation: ActivityPresentation(
-                symbolName: "asterisk",
-                accent: .orange,
-                compactAccessory: .symbol("hand.raised.fill"),
-                statusText: "Needs approval"
-            ),
-            actions: [ActivityAction(id: ActionID.complete, title: "Open", systemImage: "terminal"), Self.dismissAction]
-        ))
-    }
-
     /// A short-lived clipboard confirmation. Deliberately describes the copy without including its contents.
     func simulateClipboard() {
         publish(NotchActivity(

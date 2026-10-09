@@ -4,6 +4,7 @@ import SwiftUI
 /// Developer-only panel for generating fake activities and driving notch states.
 struct DebugPanelView: View {
     let provider: DebugActivityProvider
+    let developer: DeveloperActivityProvider
     let engine: ActivityEngine
     let notch: NotchController
 
@@ -18,11 +19,10 @@ struct DebugPanelView: View {
                     }
                     GridRow {
                         simulate("File Transfer", "arrow.down.circle") { provider.simulateFileTransfer() }
-                        simulate("Claude Waiting", "exclamationmark.bubble", provider.simulateAgentAttention)
+                        simulate("Critical (8 s)", "exclamationmark.triangle", provider.simulateCritical)
                         simulate("Clipboard", "doc.on.clipboard", provider.simulateClipboard)
                     }
                     GridRow {
-                        simulate("Critical (8 s)", "exclamationmark.triangle", provider.simulateCritical)
                         simulate("Meeting in 5 s", "calendar.badge.clock") { provider.simulateMeeting(startsIn: 5) }
                         Button("Clear All", role: .destructive, action: provider.clearAll)
                     }
@@ -36,6 +36,29 @@ struct DebugPanelView: View {
                             .gridCellColumns(2)
                     }
                 }
+            }
+
+            Section {
+                Grid(alignment: .leading, horizontalSpacing: 8, verticalSpacing: 8) {
+                    GridRow {
+                        agent("Claude Working", "asterisk", DebugAgentMessages.claudeWorking)
+                        agent("Claude Permission", "hand.raised", DebugAgentMessages.claudeNeedsPermission)
+                        agent("Claude Finished", "checkmark.circle", DebugAgentMessages.claudeFinished)
+                    }
+                    GridRow {
+                        agent("Codex Working", "chevron.left.forwardslash.chevron.right", DebugAgentMessages.codexWorking)
+                        agent("Codex Needs Input", "questionmark.bubble", DebugAgentMessages.codexNeedsInput)
+                        agent("Agent Failed", "exclamationmark.triangle", DebugAgentMessages.agentFailed)
+                    }
+                    GridRow {
+                        Button("End Agents", role: .destructive) { DebugAgentMessages.endAll.forEach(developer.receive) }
+                    }
+                }
+            } header: {
+                Text("Developer Agents")
+            } footer: {
+                Text("Sent through the real Developer agents feature, as notchctl would. Turn the feature on in Settings first.")
+                    .foregroundStyle(.secondary)
             }
 
             Section("Notch") {
@@ -82,6 +105,10 @@ struct DebugPanelView: View {
         .formStyle(.grouped)
         .frame(width: 520)
         .frame(minHeight: 480)
+    }
+
+    private func agent(_ title: String, _ systemImage: String, _ message: DeveloperBridgeMessage) -> some View {
+        simulate(title, systemImage) { developer.receive(message) }
     }
 
     private func simulate(_ title: String, _ systemImage: String, _ action: @escaping () -> Void) -> some View {

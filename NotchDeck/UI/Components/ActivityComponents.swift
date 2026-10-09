@@ -46,7 +46,7 @@ struct ActivityGlyph: View {
     }
 }
 
-/// The trailing accessory of a compact activity (text, symbol, countdown or progress ring).
+/// The trailing accessory of a compact activity (text, symbol, countdown, elapsed time or progress ring).
 struct CompactAccessoryView: View {
     let activity: NotchActivity
     var fontSize: CGFloat = 12
@@ -69,6 +69,11 @@ struct CompactAccessoryView: View {
                 .font(.system(size: fontSize, weight: .semibold).monospacedDigit())
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
+        case .elapsed(let start):
+            ElapsedText(start: start)
+                .font(.system(size: fontSize, weight: .semibold).monospacedDigit())
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
         case .progress:
             ProgressRing(progress: activity.progress ?? 0, tint: activity.presentation.accent.color)
                 .frame(width: fontSize + 2, height: fontSize + 2)
@@ -86,6 +91,17 @@ struct CountdownText: View {
         // `Text(timerInterval:)` requires a non-empty range; clamp past targets to zero.
         let now = Date.now
         Text(timerInterval: now...max(target, now), countsDown: true)
+    }
+}
+
+/// Time elapsed since `start` ("12:48"), counted up by the system (no app-side timer needed to keep
+/// it ticking).
+struct ElapsedText: View {
+    let start: Date
+
+    var body: some View {
+        // A start in the future (clock skew between processes) counts from now.
+        Text(timerInterval: min(start, .now)...Date.distantFuture, countsDown: false)
     }
 }
 

@@ -11,6 +11,9 @@ ADRs are created when a decision is actually made — never in advance.
 | [0003](0003-app-runtime-configuration.md) | App runtime configuration | Accepted (sandbox to revisit) |
 | [0004](0004-command-center-presentation.md) | Command center presentation | Accepted |
 | [0005](0005-local-utility-providers.md) | Local utility providers: command-center activities, display feedback and input routing | Accepted |
+| [0006](0006-media-and-calendar-providers.md) | Media and Calendar providers | Accepted |
+| [0007](0007-shelf-and-clipboard.md) | File Shelf and clipboard history | Accepted |
+| [0008](0008-developer-activity-bridge.md) | Developer activity bridge: local socket, generic protocol and tool adapters | Accepted |
 
 ## When to write one
 

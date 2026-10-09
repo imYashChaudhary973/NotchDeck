@@ -13,7 +13,7 @@ The detailed brief for every phase — including its *Coding Agent Prompt* — i
 | 2 | Timers + Keep Awake + System Metrics + Audio + Quick Actions | **Complete** |
 | 3 | Music + Calendar + Context Resolution | **Complete** |
 | 4 | File Shelf + Clipboard | **In Review** |
-| 5 | Claude Code + Codex + generic developer activity protocol | Not Started |
+| 5 | Claude Code + Codex + generic developer activity protocol | **In Review** |
 | 6 | Profiles + Settings + Onboarding + Accessibility + Performance + QA | Not Started |
 
 ---
@@ -179,7 +179,14 @@ Still to check on real hardware (they need hands-on dragging or a permission ans
 
 ## Phase 5 — Claude Code + Codex + Generic Developer Activity Protocol
 
-**Status:** Not Started
+**Status:** In Review — implemented on top of Phase 4 ([ADR 0008](docs/decisions/0008-developer-activity-bridge.md), [protocol](docs/developer-activity-protocol.md)).
+
+Verification (2026-10-09, 14-inch M5 MacBook Pro): 596 unit tests pass (281 new); Debug and Release build with no warnings. They cover protocol validation of malformed and hostile input (oversize, bad JSON, unknown versions and statuses, ID patterns, relative paths, control and bidi characters), `notchctl` parsing and exit codes, socket round trips (peer uid, 0700/0600 modes, stale socket replaced, a running instance or a non-socket file left alone, restart), `notchctl` end to end, the Claude Code and Codex adapters (event mapping, version fallbacks, privacy of prompts and tool input), session lifecycle and timing, multi-agent priority (agent vs music, timer and meeting), the session actions and the feature setting. A Debug build was driven with the bundled `notchctl` and the hook adapters: a working session showed live elapsed time; a session needing permission auto-peeked over it ("Claude needs you"); a finished one queued behind it; invalid messages were rejected with exit 65 and oversize ones with an error; tool input never appeared; a hook with a terminal as standard input returned at once; quitting removed the socket. Idle with the bridge listening: 0.0% CPU, no wake-ups (`top`).
+
+Still to check by hand:
+- [ ] A real Claude Code session with the hooks from [`docs/integrations/claude-code.md`](docs/integrations/claude-code.md): prompt → working, a permission prompt → peek, Stop → finished, `/exit` → gone.
+- [ ] A real Codex session with lifecycle hooks (trusted in `/hooks`), and the legacy `notify` line.
+- [ ] Open Terminal and Open Workspace from the command center (Terminal, iTerm2 or an editor).
 
 **Goals**
 - Let developer tools report activity to NotchDeck securely.
@@ -195,8 +202,8 @@ Still to check on real hardware (they need hands-on dragging or a permission ans
 - Phase 1 Activity Engine; priority levels including Attention Required.
 
 **Completion Criteria**
-- External tools can publish activities only through the authenticated local channel.
-- Malformed input is rejected safely and covered by tests.
+- [x] External tools can publish activities only through the authenticated local channel.
+- [x] Malformed input is rejected safely and covered by tests.
 
 ---
 

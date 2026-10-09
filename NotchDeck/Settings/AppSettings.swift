@@ -12,6 +12,7 @@ enum Feature: CaseIterable, Sendable {
     case calendar
     case shelf
     case clipboard
+    case developerActivity
 
     var title: String {
         switch self {
@@ -24,6 +25,7 @@ enum Feature: CaseIterable, Sendable {
         case .calendar: "Calendar"
         case .shelf: "File Shelf"
         case .clipboard: "Clipboard history"
+        case .developerActivity: "Developer agents"
         }
     }
 }
@@ -60,6 +62,7 @@ final class AppSettings {
         static let clipboardMaxEntries = "clipboard.maxEntries"
         static let clipboardRetentionDays = "clipboard.retentionDays"
         static let clipboardExcludedBundleIDs = "clipboard.excludedBundleIDs"
+        static let developerActivityEnabled = "features.developerActivity.enabled"
     }
 
     static let calendarLookAheadOptions = [3, 6, 12, 24]
@@ -169,6 +172,12 @@ final class AppSettings {
         didSet { defaults.set(clipboardExcludedBundleIDs.sorted(), forKey: Key.clipboardExcludedBundleIDs) }
     }
 
+    /// On by default: it only listens on a socket only this user can reach and does nothing until a
+    /// coding tool reports in.
+    var developerActivityEnabled: Bool {
+        didSet { defaults.set(developerActivityEnabled, forKey: Key.developerActivityEnabled) }
+    }
+
     /// Scrolling over the notch changes the output volume. Off by default: it is easy to trigger by accident.
     var scrollAdjustsVolume: Bool {
         didSet { defaults.set(scrollAdjustsVolume, forKey: Key.scrollAdjustsVolume) }
@@ -209,6 +218,7 @@ final class AppSettings {
             ? 7
             : Self.option(Key.clipboardRetentionDays, in: defaults, from: Self.clipboardRetentionDaysOptions, default: 7)
         clipboardExcludedBundleIDs = Set(defaults.stringArray(forKey: Key.clipboardExcludedBundleIDs) ?? [])
+        developerActivityEnabled = Self.bool(Key.developerActivityEnabled, in: defaults, default: true)
     }
 
     /// Reads a stored choice, falling back to the default when it isn't one of the options.
@@ -233,6 +243,7 @@ final class AppSettings {
         case .calendar: calendarEnabled
         case .shelf: shelfEnabled
         case .clipboard: clipboardEnabled
+        case .developerActivity: developerActivityEnabled
         }
     }
 
