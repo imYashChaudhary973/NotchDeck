@@ -1,10 +1,7 @@
 import SwiftUI
 
-/// Shown while something is dragged over the notch: the dragged item and three drop tiles.
-/// The tile under the pointer highlights.
-///
-/// Phase 1 only previews the shelf; drops are refused until the File Shelf (Phase 4)
-/// implements what each tile does.
+/// Shown while something is dragged over the notch: the dragged item and the drop tiles.
+/// The tile under the pointer highlights; a drop anywhere else keeps the item on the shelf.
 struct ShelfDropView: View {
     let model: NotchViewModel
     let notchSize: CGSize
@@ -23,14 +20,14 @@ struct ShelfDropView: View {
                         .lineLimit(1)
                         .truncationMode(.middle)
                     Spacer(minLength: 8)
-                    Text("Preview · drops not enabled yet")
+                    Text("Drop to keep it on the shelf")
                         .font(.system(size: 11))
                         .foregroundStyle(.tertiary)
                 }
 
                 HStack(spacing: 10) {
-                    ForEach(ShelfTile.allCases) { tile in
-                        ShelfTileView(tile: tile, dragLocation: model.shelfDrag?.location)
+                    ForEach(NotchDrop.Target.allCases, id: \.self) { target in
+                        ShelfTileView(target: target, model: model)
                     }
                 }
             }
@@ -41,17 +38,10 @@ struct ShelfDropView: View {
     }
 }
 
-/// Drop targets offered by the shelf. Their behavior is implemented in Phase 4.
-enum ShelfTile: String, CaseIterable, Identifiable {
-    case tray
-    case copy
-    case airDrop
-
-    var id: String { rawValue }
-
+extension NotchDrop.Target {
     var title: String {
         switch self {
-        case .tray: "Tray"
+        case .shelf: "Shelf"
         case .copy: "Copy"
         case .airDrop: "AirDrop"
         }
@@ -59,7 +49,7 @@ enum ShelfTile: String, CaseIterable, Identifiable {
 
     var subtitle: String {
         switch self {
-        case .tray: "Keep for later"
+        case .shelf: "Keep for later"
         case .copy: "Onto the clipboard"
         case .airDrop: "Send to a device"
         }
@@ -67,7 +57,7 @@ enum ShelfTile: String, CaseIterable, Identifiable {
 
     var symbolName: String {
         switch self {
-        case .tray: "tray.and.arrow.down.fill"
+        case .shelf: "tray.and.arrow.down.fill"
         case .copy: "doc.on.doc.fill"
         case .airDrop: "dot.radiowaves.left.and.right"
         }
@@ -75,7 +65,7 @@ enum ShelfTile: String, CaseIterable, Identifiable {
 
     var accent: ActivityAccent {
         switch self {
-        case .tray: .purple
+        case .shelf: .purple
         case .copy: .green
         case .airDrop: .blue
         }
@@ -83,23 +73,23 @@ enum ShelfTile: String, CaseIterable, Identifiable {
 }
 
 private struct ShelfTileView: View {
-    let tile: ShelfTile
-    let dragLocation: CGPoint?
+    let target: NotchDrop.Target
+    let model: NotchViewModel
 
     @State private var frame: CGRect = .zero
 
     var body: some View {
-        let isTargeted = dragLocation.map { frame.contains($0) } ?? false
+        let isTargeted = model.shelfDrag.map { frame.contains($0.location) } ?? false
         let shape = RoundedRectangle(cornerRadius: 14, style: .continuous)
 
         VStack(spacing: 6) {
             IconTile(
-                presentation: ActivityPresentation(symbolName: tile.symbolName, accent: tile.accent),
+                presentation: ActivityPresentation(symbolName: target.symbolName, accent: target.accent),
                 size: 30
             )
-            Text(tile.title)
+            Text(target.title)
                 .font(.system(size: 13, weight: .semibold))
-            Text(tile.subtitle)
+            Text(target.subtitle)
                 .font(.system(size: 11))
                 .foregroundStyle(.secondary)
         }
@@ -108,7 +98,7 @@ private struct ShelfTileView: View {
         .background(shape.fill(.white.opacity(isTargeted ? 0.1 : 0.03)))
         .overlay(
             shape.strokeBorder(
-                isTargeted ? tile.accent.color.opacity(0.8) : .white.opacity(0.22),
+                isTargeted ? target.accent.color.opacity(0.8) : .white.opacity(0.22),
                 style: StrokeStyle(lineWidth: 1.5, dash: isTargeted ? [] : [6, 5])
             )
         )
@@ -118,6 +108,7 @@ private struct ShelfTileView: View {
             proxy.frame(in: .global)
         } action: { newFrame in
             frame = newFrame
+            model.setShelfTileFrame(newFrame, for: target)
         }
         .accessibilityElement(children: .combine)
     }

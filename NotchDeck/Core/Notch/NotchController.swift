@@ -22,6 +22,9 @@ final class NotchController {
     static let fullScreenRecheckDelay: Duration = .seconds(1)
     /// Warm-up runs once launch has settled, so it never competes with startup work.
     static let prewarmDelay: Duration = .seconds(1)
+    /// After the mouse is released, how long to wait for AppKit to deliver a drop before closing a
+    /// shelf that an approaching drag opened.
+    static let approachReleaseDelay: Duration = .milliseconds(300)
 
     let model: NotchViewModel
     var onOpenSettings: (() -> Void)? {
@@ -38,6 +41,8 @@ final class NotchController {
     private var hostingView: NotchHostingView<NotchRootView>?
 
     private var outsideClickMonitors: [Any] = []
+    private let approachMonitor = DragApproachMonitor()
+    private var approachReleaseTask: Task<Void, Never>?
     private var screenObserver: NSObjectProtocol?
     private var workspaceObservers: [NSObjectProtocol] = []
     /// Whether a full-screen window covers the notch's display. Only tracked for virtual notches.
@@ -76,14 +81,18 @@ final class NotchController {
         hostingView.onPointerEntered = { [weak self] in self?.pointerEntered() }
         hostingView.onPointerExited = { [weak self] in self?.pointerExited() }
         hostingView.onClickOutside = { [weak self] in self?.send(.clickedOutside) }
+        hostingView.canAcceptDrag = { [weak self] info in self?.canAcceptDrag(info) ?? false }
         hostingView.onDragUpdated = { [weak self] location, description in
             guard let self else { return }
             self.send(.dragEntered)
             self.model.updateShelfDrag(ShelfDrag(location: location, itemDescription: description))
         }
-        hostingView.onDragExited = { [weak self] in self?.send(.dragExited) }
-        hostingView.onDrop = { [weak self] in self?.send(.dropCompleted) }
-        hostingView.onScroll = { [weak self] steps in self?.engine.routeNotchScroll(steps) }
+        hostingView.onDragExited = { [weak self] in self?.shelfDragEnded(.dragExited) }
+        hostingView.onDrop = { [weak self] info in self?.performDrop(info) ?? false }
+        hostingView.onScroll = { [weak self] steps in self?.engine.routeNotchScroll(steps) ?? false }
+        approachMonitor.onAction = { [weak self] action, location in
+            self?.dragApproached(action, at: location)
+        }
         panel.contentView = hostingView
         self.panel = panel
         self.hostingView = hostingView
@@ -114,6 +123,7 @@ final class NotchController {
         }
 
         observeSettings()
+        observeDropAcceptance()
         updateScreen()
 
         prewarmTask = Task { [weak self] in
@@ -134,8 +144,9 @@ final class NotchController {
         workspaceObservers.forEach(NSWorkspace.shared.notificationCenter.removeObserver)
         workspaceObservers.removeAll()
         removeOutsideClickMonitors()
+        approachMonitor.stop()
         engine.updateDisplayedActivities([])
-        [shrinkTask, hideTask, fullScreenRecheckTask, prewarmTask, attentionPeekTask, pointerExitTask].forEach { $0?.cancel() }
+        [shrinkTask, hideTask, fullScreenRecheckTask, prewarmTask, attentionPeekTask, pointerExitTask, approachReleaseTask].forEach { $0?.cancel() }
         panel?.orderOut(nil)
         panel = nil
         hostingView = nil
@@ -191,6 +202,88 @@ final class NotchController {
             try? await Task.sleep(for: Self.pointerExitDelay)
             guard !Task.isCancelled else { return }
             self?.send(.pointerExited)
+        }
+    }
+
+    // MARK: Drag and drop
+
+    private func canAcceptDrag(_ info: any NSDraggingInfo) -> Bool {
+        // NotchDeck's own drags (an item dragged out of the shelf) pass over the notch.
+        info.draggingSource == nil && engine.acceptsDrops && NotchDrop.canRead(info.draggingPasteboard)
+    }
+
+    /// Reads the drop while the pasteboard is valid, routes it to the engine and closes the shelf.
+    private func performDrop(_ info: any NSDraggingInfo) -> Bool {
+        // Decide the tile before the state changes; leaving the shelf forgets the drag.
+        let target = model.dropTarget
+        let items = NotchDrop.items(from: info.draggingPasteboard)
+        let accepted = engine.routeDrop(NotchDrop(items: items, target: target))
+        shelfDragEnded(.dropCompleted)
+        return accepted
+    }
+
+    private func shelfDragEnded(_ event: NotchEvent) {
+        approachReleaseTask?.cancel()
+        approachReleaseTask = nil
+        approachMonitor.shelfClosed()
+        send(event)
+    }
+
+    /// Opens the shelf as a drag from another app approaches, and closes it if the drag leaves or
+    /// ends without the notch ever receiving it.
+    private func dragApproached(_ action: DragApproachTracker.Action, at screenLocation: CGPoint) {
+        switch action {
+        case .none:
+            break
+        case .open:
+            approachReleaseTask?.cancel()
+            send(.dragEntered)
+            if let hostingView, let panel {
+                let location = hostingView.convert(panel.convertPoint(fromScreen: screenLocation), from: nil)
+                let topLeft = hostingView.isFlipped ? location : CGPoint(x: location.x, y: hostingView.bounds.height - location.y)
+                model.updateShelfDrag(ShelfDrag(
+                    location: topLeft,
+                    itemDescription: NotchHostingView<NotchRootView>.describe(NSPasteboard(name: .drag))
+                ))
+            }
+        case .close:
+            // Released or moved away. AppKit reports drags it delivered (drop, exit) itself; give it a
+            // moment to, and close only a shelf nobody is dropping on.
+            approachReleaseTask?.cancel()
+            approachReleaseTask = Task { [weak self] in
+                try? await Task.sleep(for: Self.approachReleaseDelay)
+                guard !Task.isCancelled, let self else { return }
+                if self.machine.state == .shelf, self.hostingView?.isReceivingDrag != true {
+                    self.send(.dragExited)
+                }
+            }
+        }
+    }
+
+    /// The approach monitor runs only while a provider accepts drops and the setting is on.
+    private func updateApproachMonitoring() {
+        guard isStarted else { return }
+        if engine.acceptsDrops, settings.shelfOpensOnApproach, let geometry {
+            let shelfSize = NotchLayout.metrics(for: .shelf, notchSize: geometry.notchSize).outerSize
+            approachMonitor.update(
+                activationRegion: geometry.topCenteredFrame(size: NotchLayout.shelfActivationSize(notchSize: geometry.notchSize)),
+                shelfRegion: geometry.topCenteredFrame(size: shelfSize)
+            )
+            approachMonitor.start()
+        } else {
+            approachMonitor.stop()
+        }
+    }
+
+    private func observeDropAcceptance() {
+        withObservationTracking {
+            _ = engine.acceptsDrops
+        } onChange: { [weak self] in
+            Task { @MainActor [weak self] in
+                guard let self, self.isStarted else { return }
+                self.updateApproachMonitoring()
+                self.observeDropAcceptance()
+            }
         }
     }
 
@@ -317,12 +410,14 @@ final class NotchController {
         guard let index = NotchScreenSelector.select(from: candidates, preference: settings.displayPreference) else {
             geometry = nil
             updatePanelVisibility()
+            updateApproachMonitoring()
             return
         }
 
         let newGeometry = NotchGeometry(screen: screens[index])
         guard newGeometry != geometry else { return }
         geometry = newGeometry
+        updateApproachMonitoring()
         model.update(state: machine.state, geometry: newGeometry)
         updatePanelFrame(animated: false)
         updateFullScreenCoverage()
@@ -393,11 +488,13 @@ final class NotchController {
         withObservationTracking {
             _ = settings.stateMachineConfiguration
             _ = settings.displayPreference
+            _ = settings.shelfOpensOnApproach
         } onChange: { [weak self] in
             Task { @MainActor [weak self] in
                 guard let self, self.isStarted else { return }
                 self.machine.configuration = self.settings.stateMachineConfiguration
                 self.updateScreen()
+                self.updateApproachMonitoring()
                 self.observeSettings()
             }
         }

@@ -102,6 +102,20 @@ enum NotchPrewarmer {
                     .init(id: "e3", title: "Offsite", start: now, end: now.addingTimeInterval(86_400), isAllDay: true, accent: .green),
                 ]))
             )),
+            sample("tiles", .shelf, .passive, ActivityPresentation(
+                symbolName: "tray.full", accent: .purple,
+                content: .collection(CollectionContent(layout: .tiles, items: [
+                    .init(id: "f1", title: "Report.pdf", symbolName: "doc", thumbnail: sampleArtwork, isPinned: true, payload: .file(URL(filePath: "/tmp"))),
+                    .init(id: "f2", title: "Folder", symbolName: "folder", isUnavailable: true),
+                ], hiddenCount: 1))
+            )),
+            sample("rows", .clipboard, .passive, ActivityPresentation(
+                symbolName: "doc.on.clipboard.fill", accent: .green,
+                content: .collection(CollectionContent(layout: .rows, items: [
+                    .init(id: "c1", title: "let answer = 42", subtitle: "now", symbolName: "chevron.left.forwardslash.chevron.right", isMonospaced: true, payload: .text("let answer = 42")),
+                    .init(id: "c2", title: "#FF8800", subtitle: "5m", symbolName: "paintpalette", color: ColorComponents(red: 1, green: 0.53, blue: 0), isPinned: true),
+                ]))
+            )),
             sample("level", .system, .active, ActivityPresentation(
                 symbolName: "speaker.wave.2.fill", accent: .orange, compactAccessory: .text("50%"),
                 content: .level(LevelContent(value: 0.5, valueText: "50%", adjustActionID: "a", muteActionID: "m")),

@@ -20,6 +20,8 @@ final class AppEnvironment {
     let quickActions: QuickActionsProvider
     let music: MusicProvider
     let calendar: CalendarProvider
+    let shelf: ShelfProvider
+    let clipboard: ClipboardProvider
 
     #if DEBUG
     let debugProvider = DebugActivityProvider()
@@ -48,6 +50,12 @@ final class AppEnvironment {
             ScriptableMediaProvider(app: SpotifyApp()),
         ])
         calendar = CalendarProvider(store: EventKitCalendarStore(), configuration: { settings.calendarConfiguration })
+        shelf = ShelfProvider(
+            storage: ShelfDirectoryStorage(),
+            system: SystemShelfActions(),
+            lifetime: { settings.shelfItemLifetime }
+        )
+        clipboard = ClipboardProvider(configuration: { settings.clipboardConfiguration })
 
         notchController.onOpenSettings = { [weak self] in self?.showSettings() }
         timers.onRequestCustomDuration = { [weak self] in self?.showCustomTimer() }
@@ -55,6 +63,8 @@ final class AppEnvironment {
             if settings.timerPlaysSound { NSSound(named: "Glass")?.play() }
         }
         keepAwake.onChange = { [weak self] in self?.quickActions.refresh() }
+        clipboard.onShowHistory = { [weak self] in self?.showClipboardHistory() }
+        clipboard.onSetPaused = { settings.clipboardPaused = $0 }
     }
 
     func start() {
@@ -65,6 +75,7 @@ final class AppEnvironment {
         applyFeatureSettings(userInitiated: false)
         observeFeatureSettings()
         observeCalendarSettings()
+        observeClipboardSettings()
         notchController.start()
 
         #if DEBUG
@@ -96,6 +107,8 @@ final class AppEnvironment {
         case .quickActions: quickActions
         case .music: music
         case .calendar: calendar
+        case .shelf: shelf
+        case .clipboard: clipboard
         }
     }
 
@@ -112,12 +125,19 @@ final class AppEnvironment {
                 if feature == .calendar, userInitiated {
                     calendar.requestAccess()
                 }
+                // Reading the clipboard right away asks for access in context (if macOS asks at all).
+                if feature == .clipboard, userInitiated {
+                    clipboard.captureCurrentClipboard()
+                }
             } else if !settings.isEnabled(feature), isRegistered {
                 // Turning a feature off ends what it was doing, rather than resuming it next launch.
                 switch feature {
                 case .timers: timers.cancelAll()
                 case .keepAwake: keepAwake.turnOff()
-                case .systemMetrics, .audio, .quickActions, .music, .calendar: break
+                // Shelf items are temporary; turning the shelf off removes them. Clipboard history
+                // is kept until the user clears it in Settings.
+                case .shelf: shelf.removeAll()
+                case .systemMetrics, .audio, .quickActions, .music, .calendar, .clipboard: break
                 }
                 engine.unregister(provider.source)
             }
@@ -149,6 +169,19 @@ final class AppEnvironment {
                     self.calendar.reload()
                 }
                 self.observeCalendarSettings()
+            }
+        }
+    }
+
+    /// Applies the history limits, exclusions and pause when they change.
+    private func observeClipboardSettings() {
+        withObservationTracking {
+            _ = settings.clipboardConfiguration
+        } onChange: { [weak self] in
+            Task { @MainActor [weak self] in
+                guard let self, self.isStarted else { return }
+                self.clipboard.configurationChanged()
+                self.observeClipboardSettings()
             }
         }
     }
@@ -186,7 +219,16 @@ final class AppEnvironment {
         launchAtLogin.refresh()
         calendar.refreshAuthorization()
         windows.show(id: "settings", title: "NotchDeck Settings") {
-            SettingsView(settings: self.settings, launchAtLogin: self.launchAtLogin, calendar: self.calendar)
+            SettingsView(settings: self.settings, launchAtLogin: self.launchAtLogin, calendar: self.calendar, clipboard: self.clipboard)
+        }
+    }
+
+    func showClipboardHistory() {
+        notchController.send(.dismiss)
+        windows.show(id: "clipboardHistory", title: "Clipboard History") {
+            ClipboardHistoryView(clipboard: self.clipboard) { [weak self] in
+                self?.windows.close(id: "clipboardHistory")
+            }
         }
     }
 

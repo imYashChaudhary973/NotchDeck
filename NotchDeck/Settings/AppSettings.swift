@@ -10,6 +10,8 @@ enum Feature: CaseIterable, Sendable {
     case quickActions
     case music
     case calendar
+    case shelf
+    case clipboard
 
     var title: String {
         switch self {
@@ -20,6 +22,8 @@ enum Feature: CaseIterable, Sendable {
         case .quickActions: "Quick actions"
         case .music: "Now Playing"
         case .calendar: "Calendar"
+        case .shelf: "File Shelf"
+        case .clipboard: "Clipboard history"
         }
     }
 }
@@ -48,10 +52,21 @@ final class AppSettings {
         static let calendarLookAheadHours = "calendar.lookAheadHours"
         static let calendarNotchLeadMinutes = "calendar.notchLeadMinutes"
         static let calendarExcludedIDs = "calendar.excludedCalendarIDs"
+        static let shelfEnabled = "features.shelf.enabled"
+        static let shelfOpensOnApproach = "shelf.opensOnApproach"
+        static let shelfItemLifetime = "shelf.itemLifetime"
+        static let clipboardEnabled = "features.clipboard.enabled"
+        static let clipboardPaused = "clipboard.paused"
+        static let clipboardMaxEntries = "clipboard.maxEntries"
+        static let clipboardRetentionDays = "clipboard.retentionDays"
+        static let clipboardExcludedBundleIDs = "clipboard.excludedBundleIDs"
     }
 
     static let calendarLookAheadOptions = [3, 6, 12, 24]
     static let calendarNotchLeadOptions = [5, 10, 15, 30]
+    static let clipboardMaxEntriesOptions = [25, 50, 100, 200]
+    /// Days unpinned clipboard entries are kept; 0 keeps them until the history is full or cleared.
+    static let clipboardRetentionDaysOptions = [1, 7, 30, 0]
 
     var peeksOnHover: Bool {
         didSet { defaults.set(peeksOnHover, forKey: Key.peeksOnHover) }
@@ -115,6 +130,45 @@ final class AppSettings {
         didSet { defaults.set(calendarExcludedIDs.sorted(), forKey: Key.calendarExcludedIDs) }
     }
 
+    var shelfEnabled: Bool {
+        didSet { defaults.set(shelfEnabled, forKey: Key.shelfEnabled) }
+    }
+
+    /// A drag coming near the notch opens the shelf, before it reaches the top edge of the screen.
+    var shelfOpensOnApproach: Bool {
+        didSet { defaults.set(shelfOpensOnApproach, forKey: Key.shelfOpensOnApproach) }
+    }
+
+    /// How long new shelf items are kept unless pinned.
+    var shelfItemLifetime: ShelfLifetime {
+        didSet { defaults.set(shelfItemLifetime.rawValue, forKey: Key.shelfItemLifetime) }
+    }
+
+    /// Off by default: clipboard history keeps what the user copies, which is private.
+    var clipboardEnabled: Bool {
+        didSet { defaults.set(clipboardEnabled, forKey: Key.clipboardEnabled) }
+    }
+
+    /// Stops keeping new copies without turning the feature (and its history) off.
+    var clipboardPaused: Bool {
+        didSet { defaults.set(clipboardPaused, forKey: Key.clipboardPaused) }
+    }
+
+    /// Most unpinned entries kept.
+    var clipboardMaxEntries: Int {
+        didSet { defaults.set(clipboardMaxEntries, forKey: Key.clipboardMaxEntries) }
+    }
+
+    /// Days unpinned entries are kept; 0 means until the history is full or cleared.
+    var clipboardRetentionDays: Int {
+        didSet { defaults.set(clipboardRetentionDays, forKey: Key.clipboardRetentionDays) }
+    }
+
+    /// Apps whose copies are never kept, by bundle identifier (password managers are always excluded).
+    var clipboardExcludedBundleIDs: Set<String> {
+        didSet { defaults.set(clipboardExcludedBundleIDs.sorted(), forKey: Key.clipboardExcludedBundleIDs) }
+    }
+
     /// Scrolling over the notch changes the output volume. Off by default: it is easy to trigger by accident.
     var scrollAdjustsVolume: Bool {
         didSet { defaults.set(scrollAdjustsVolume, forKey: Key.scrollAdjustsVolume) }
@@ -145,6 +199,16 @@ final class AppSettings {
         calendarLookAheadHours = Self.option(Key.calendarLookAheadHours, in: defaults, from: Self.calendarLookAheadOptions, default: 12)
         calendarNotchLeadMinutes = Self.option(Key.calendarNotchLeadMinutes, in: defaults, from: Self.calendarNotchLeadOptions, default: 15)
         calendarExcludedIDs = Set(defaults.stringArray(forKey: Key.calendarExcludedIDs) ?? [])
+        shelfEnabled = Self.bool(Key.shelfEnabled, in: defaults, default: true)
+        shelfOpensOnApproach = Self.bool(Key.shelfOpensOnApproach, in: defaults, default: true)
+        shelfItemLifetime = defaults.string(forKey: Key.shelfItemLifetime).flatMap(ShelfLifetime.init(rawValue:)) ?? .oneHour
+        clipboardEnabled = Self.bool(Key.clipboardEnabled, in: defaults, default: false)
+        clipboardPaused = Self.bool(Key.clipboardPaused, in: defaults, default: false)
+        clipboardMaxEntries = Self.option(Key.clipboardMaxEntries, in: defaults, from: Self.clipboardMaxEntriesOptions, default: 50)
+        clipboardRetentionDays = defaults.object(forKey: Key.clipboardRetentionDays) == nil
+            ? 7
+            : Self.option(Key.clipboardRetentionDays, in: defaults, from: Self.clipboardRetentionDaysOptions, default: 7)
+        clipboardExcludedBundleIDs = Set(defaults.stringArray(forKey: Key.clipboardExcludedBundleIDs) ?? [])
     }
 
     /// Reads a stored choice, falling back to the default when it isn't one of the options.
@@ -167,6 +231,8 @@ final class AppSettings {
         case .quickActions: quickActionsEnabled
         case .music: musicEnabled
         case .calendar: calendarEnabled
+        case .shelf: shelfEnabled
+        case .clipboard: clipboardEnabled
         }
     }
 
@@ -176,6 +242,18 @@ final class AppSettings {
             lookAhead: TimeInterval(calendarLookAheadHours) * 3600,
             rules: CalendarRules(notchLeadTime: TimeInterval(calendarNotchLeadMinutes) * 60),
             excludedCalendarIDs: calendarExcludedIDs
+        )
+    }
+
+    /// The clipboard options, in the form the clipboard feature uses.
+    var clipboardConfiguration: ClipboardProvider.Configuration {
+        ClipboardProvider.Configuration(
+            limits: ClipboardHistory.Limits(
+                maxEntries: clipboardMaxEntries,
+                retention: clipboardRetentionDays > 0 ? TimeInterval(clipboardRetentionDays) * 86_400 : nil
+            ),
+            excludedBundleIDs: clipboardExcludedBundleIDs,
+            isPaused: clipboardPaused
         )
     }
 

@@ -20,6 +20,7 @@ enum ActivityKind: String, Sendable, CaseIterable {
     case music
     case meeting
     case timer
+    case shelf
     case fileTransfer
     case agent
     case clipboard
@@ -231,6 +232,118 @@ struct ScheduleContent: Equatable, Sendable {
     var entries: [Entry]
 }
 
+/// An sRGB color with components in `0...1`, such as a color copied to the clipboard.
+struct ColorComponents: Equatable, Hashable, Codable, Sendable {
+    var red: Double
+    var green: Double
+    var blue: Double
+    var alpha: Double
+
+    init(red: Double, green: Double, blue: Double, alpha: Double = 1) {
+        self.red = min(max(red, 0), 1)
+        self.green = min(max(green, 0), 1)
+        self.blue = min(max(blue, 0), 1)
+        self.alpha = min(max(alpha, 0), 1)
+    }
+}
+
+/// Items the user can pick up again, such as files on the shelf or clipboard history entries.
+///
+/// Clicking an item invokes its `primaryActionID`; its context menu lists `menuActions`. An item
+/// with a `payload` can also be dragged out of the notch into other apps and shared. Item action
+/// IDs are built with `actionID(_:item:)` and parsed back by the provider with `itemAction(from:)`.
+struct CollectionContent: Equatable, Sendable {
+    enum Layout: Sendable {
+        /// Thumbnail tiles in a horizontal strip.
+        case tiles
+        /// One-line rows.
+        case rows
+    }
+
+    /// What an item hands to another app when it is dragged out or shared.
+    enum Payload: Equatable, Sendable {
+        case file(URL)
+        case url(URL)
+        case text(String)
+    }
+
+    struct Item: Identifiable, Equatable, Sendable {
+        let id: String
+        var title: String
+        /// A short detail, such as "Folder" or "2m". Rows show it trailing; tiles only in help text.
+        var subtitle: String?
+        var symbolName: String
+        /// A small encoded preview (PNG). Providers keep it small; the notch never loads full-size images.
+        var thumbnail: Data?
+        /// Drawn as a swatch in place of the symbol.
+        var color: ColorComponents?
+        var isPinned: Bool
+        /// The item can't be used right now (e.g. its file is missing): drawn dimmed and not draggable.
+        var isUnavailable: Bool
+        /// Draws the title in a monospaced font (code).
+        var isMonospaced: Bool
+        var payload: Payload?
+        var primaryActionID: ActivityAction.ID?
+        var menuActions: [ActivityAction]
+
+        init(
+            id: String,
+            title: String,
+            subtitle: String? = nil,
+            symbolName: String,
+            thumbnail: Data? = nil,
+            color: ColorComponents? = nil,
+            isPinned: Bool = false,
+            isUnavailable: Bool = false,
+            isMonospaced: Bool = false,
+            payload: Payload? = nil,
+            primaryActionID: ActivityAction.ID? = nil,
+            menuActions: [ActivityAction] = []
+        ) {
+            self.id = id
+            self.title = title
+            self.subtitle = subtitle
+            self.symbolName = symbolName
+            self.thumbnail = thumbnail
+            self.color = color
+            self.isPinned = isPinned
+            self.isUnavailable = isUnavailable
+            self.isMonospaced = isMonospaced
+            self.payload = payload
+            self.primaryActionID = primaryActionID
+            self.menuActions = menuActions
+        }
+    }
+
+    var layout: Layout
+    var items: [Item]
+    /// Shown in place of the items when there are none.
+    var emptyText: String?
+    /// Items that exist but aren't listed in the notch (shown as "+N more").
+    var hiddenCount: Int
+
+    init(layout: Layout, items: [Item], emptyText: String? = nil, hiddenCount: Int = 0) {
+        self.layout = layout
+        self.items = items
+        self.emptyText = emptyText
+        self.hiddenCount = hiddenCount
+    }
+
+    /// The action ID for `action` on one item, e.g. `"pin:42"`.
+    static func actionID(_ action: String, item: String) -> ActivityAction.ID {
+        "\(action):\(item)"
+    }
+
+    /// Splits an action ID made by `actionID(_:item:)` into the action and the item ID.
+    static func itemAction(from actionID: ActivityAction.ID) -> (action: String, item: String)? {
+        guard let separator = actionID.firstIndex(of: ":") else { return nil }
+        let action = String(actionID[..<separator])
+        let item = String(actionID[actionID.index(after: separator)...])
+        guard !action.isEmpty, !item.isEmpty else { return nil }
+        return (action, item)
+    }
+}
+
 /// The kind of content an activity carries, which selects how the notch draws it in detail.
 enum ActivityContent: Equatable, Sendable {
     case standard
@@ -240,6 +353,7 @@ enum ActivityContent: Equatable, Sendable {
     case toggle(ToggleContent)
     case actions(ActionsContent)
     case schedule(ScheduleContent)
+    case collection(CollectionContent)
 }
 
 /// A choice among a few options, such as the audio output device. Shown as a list on the

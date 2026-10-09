@@ -24,13 +24,14 @@ enum CommandCenterSection: Hashable, Sendable {
 
 extension ActivityKind {
     /// Order of kind tabs in the command center.
-    static let sectionOrder: [ActivityKind] = [.music, .meeting, .timer, .fileTransfer, .agent, .clipboard, .system, .quickActions, .generic]
+    static let sectionOrder: [ActivityKind] = [.music, .meeting, .timer, .shelf, .clipboard, .fileTransfer, .agent, .system, .quickActions, .generic]
 
     var sectionSymbolName: String {
         switch self {
         case .music: "waveform"
         case .meeting: "calendar"
         case .timer: "timer"
+        case .shelf: "tray.full"
         case .fileTransfer: "arrow.down.circle"
         case .agent: "terminal"
         case .clipboard: "doc.on.clipboard"
@@ -45,6 +46,7 @@ extension ActivityKind {
         case .music: "Now Playing"
         case .meeting: "Calendar"
         case .timer: "Timers"
+        case .shelf: "Shelf"
         case .fileTransfer: "Transfers"
         case .agent: "Agents"
         case .clipboard: "Clipboard"

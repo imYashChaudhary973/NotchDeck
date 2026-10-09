@@ -10,12 +10,19 @@ final class NotchHostingView<Content: View>: NSHostingView<Content> {
     var onPointerEntered: (() -> Void)?
     var onPointerExited: (() -> Void)?
     var onClickOutside: (() -> Void)?
+    /// Whether a drag entering the surface may open the shelf. A refused drag passes over the notch.
+    var canAcceptDrag: ((any NSDraggingInfo) -> Bool)?
     /// Called when a drag enters or moves, with its location in this view and an item description.
     var onDragUpdated: ((CGPoint, String) -> Void)?
     var onDragExited: (() -> Void)?
-    var onDrop: (() -> Void)?
-    /// Called when the user scrolls over the visible surface, in normalized steps (positive = up).
-    var onScroll: ((Double) -> Void)?
+    /// Called when an accepted drag is dropped. Returns whether the content was taken.
+    var onDrop: ((any NSDraggingInfo) -> Bool)?
+
+    /// Whether an accepted drag is over the surface right now.
+    private(set) var isReceivingDrag = false
+    /// Called when the user scrolls vertically over the visible surface, in normalized steps
+    /// (positive = up). Returns whether the scroll was handled; unhandled scrolls reach the content.
+    var onScroll: ((Double) -> Bool)?
 
     /// Size of the visible notch surface. Updating it rebuilds the hover tracking area.
     var interactiveSize: CGSize = .zero {
@@ -32,7 +39,7 @@ final class NotchHostingView<Content: View>: NSHostingView<Content> {
     required init(rootView: Content) {
         super.init(rootView: rootView)
         sizingOptions = []
-        registerForDraggedTypes([.fileURL, .URL, .string, .tiff, .png, .pdf])
+        registerForDraggedTypes(NotchDrop.acceptedTypes)
     }
 
     @available(*, unavailable)
@@ -121,8 +128,10 @@ final class NotchHostingView<Content: View>: NSHostingView<Content> {
 
     override func scrollWheel(with event: NSEvent) {
         let location = convert(event.locationInWindow, from: nil)
-        // Momentum after the fingers lift would overshoot; only direct input counts.
-        guard interactiveRect.contains(location), event.momentumPhase.isEmpty, let onScroll else {
+        // Momentum after the fingers lift would overshoot; only direct input counts. Horizontal
+        // scrolls belong to the content (the shelf's strip of items).
+        let isHorizontal = abs(event.scrollingDeltaX) > abs(event.scrollingDeltaY)
+        guard interactiveRect.contains(location), !isHorizontal, event.momentumPhase.isEmpty, let onScroll else {
             super.scrollWheel(with: event)
             return
         }
@@ -131,17 +140,23 @@ final class NotchHostingView<Content: View>: NSHostingView<Content> {
             isPrecise: event.hasPreciseScrollingDeltas,
             isInverted: event.isDirectionInvertedFromDevice
         )
-        if steps != 0 { onScroll(steps) }
+        if steps == 0 || !onScroll(steps) {
+            super.scrollWheel(with: event)
+        }
     }
 
     // MARK: Drag and drop
 
     override func draggingEntered(_ sender: any NSDraggingInfo) -> NSDragOperation {
+        isReceivingDrag = canAcceptDrag?(sender) ?? false
+        guard isReceivingDrag else { return [] }
         reportDrag(sender)
+        // The shelf keeps a reference (or a copy of data); the source keeps its item.
         return .copy
     }
 
     override func draggingUpdated(_ sender: any NSDraggingInfo) -> NSDragOperation {
+        guard isReceivingDrag else { return [] }
         reportDrag(sender)
         return .copy
     }
@@ -159,6 +174,9 @@ final class NotchHostingView<Content: View>: NSHostingView<Content> {
         let files = urls.filter(\.isFileURL)
         if files.count == 1 { return files[0].lastPathComponent }
         if files.count > 1 { return "\(files.count) items" }
+        let promises = pasteboard.readObjects(forClasses: [NSFilePromiseReceiver.self], options: nil)?.count ?? 0
+        if promises > 1 { return "\(promises) items" }
+        if promises == 1 { return "File" }
         if let url = urls.first { return url.host() ?? "Link" }
         if pasteboard.canReadObject(forClasses: [NSImage.self], options: nil) { return "Image" }
         if pasteboard.string(forType: .string) != nil { return "Text" }
@@ -166,17 +184,24 @@ final class NotchHostingView<Content: View>: NSHostingView<Content> {
     }
 
     override func draggingExited(_ sender: (any NSDraggingInfo)?) {
+        guard isReceivingDrag else { return }
+        isReceivingDrag = false
         onDragExited?()
     }
 
     override func prepareForDragOperation(_ sender: any NSDraggingInfo) -> Bool {
-        true
+        isReceivingDrag
     }
 
-    /// Phase 1 only detects drags. Items are not accepted until the File Shelf exists (Phase 4),
-    /// so the drop is refused and the dragged item returns to its source.
+    /// Hands the drop to the controller, which routes it to a provider. If none takes it,
+    /// the dragged item returns to its source.
     override func performDragOperation(_ sender: any NSDraggingInfo) -> Bool {
-        onDrop?()
-        return false
+        guard isReceivingDrag else { return false }
+        isReceivingDrag = false
+        return onDrop?(sender) ?? false
+    }
+
+    override func draggingEnded(_ sender: any NSDraggingInfo) {
+        isReceivingDrag = false
     }
 }
