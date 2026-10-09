@@ -72,8 +72,10 @@ Useful launch arguments (they override stored settings for that run):
 | `-NotchDeckShowDebugPanel YES` | Open the debug panel at launch (Debug builds) |
 | `-notch.displayPreference primary` | Put the notch on the primary display (test the virtual notch on external monitors) |
 | `-audio.scrollAdjustsVolume YES` | Turn on scroll-over-the-notch volume for that run |
-| `-features.<timers\|keepAwake\|systemMetrics\|audio\|quickActions\|music>.enabled NO` | Turn a feature off for that run |
+| `-features.<timers\|keepAwake\|systemMetrics\|audio\|quickActions\|music\|shelf>.enabled NO` | Turn a feature off for that run |
 | `-features.calendar.enabled YES` | Turn Calendar on for that run (shows the Allow Access row; does not prompt) |
+| `-features.clipboard.enabled YES` | Turn clipboard history on for that run (records copies made after launch) |
+| `-shelf.opensOnApproach NO` | The shelf opens only when a drag reaches the notch itself |
 
 ## Testing
 
@@ -121,7 +123,8 @@ The notch itself needs **no** permissions (no Accessibility, Input Monitoring or
 | Now Playing | Distributed notifications from Music / Spotify — no permission. Controls, position and artwork: Automation (Apple Events), asked by macOS the first time a control is pressed |
 | Calendar | EventKit full calendar access, asked when Calendar is turned on in Settings |
 | Login item | ServiceManagement (`SMAppService`) — implemented; may need approval in System Settings ▸ General ▸ Login Items, and is unreliable for builds run from DerivedData |
-| Clipboard | `NSPasteboard` (no TCC prompt, but privacy-sensitive) |
+| File Shelf | Drag and drop, bookmarks, Quick Look, `NSSharingService` — no permission. The drag-approach monitor is a global *mouse* event monitor, which needs no Accessibility or Input Monitoring permission. |
+| Clipboard | `NSPasteboard` — no TCC permission. On macOS 15.4+ the system may show its "Paste from Other Apps" prompt on the first read, which NotchDeck does only right after the user turns the feature on. Reset with `tccutil reset Pasteboard com.imyashchaudhary.NotchDeck`. |
 | Developer agents | Local IPC (design TBD in Phase 5) |
 
 Usage-description strings (`NS…UsageDescription`) are added alongside the feature that needs them.

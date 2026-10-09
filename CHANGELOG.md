@@ -8,6 +8,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
+- Phase 4 — File Shelf and clipboard history:
+  - Drops on the notch go through the Activity Engine (`acceptsDrops`, `handleDrop`, `routeDrop`); the notch window stays owned by `NotchController`. The shelf opens as a content drag approaches the notch, before macOS would open the Spaces bar.
+  - File Shelf: files, folders, links, text, dropped images and file promises. Three drop tiles (Shelf, Copy, AirDrop). Files are referenced with bookmarks, never copied; missing files are shown as such. Items expire after an hour or at the end of the day, can be kept longer per item or pinned. Drag items out into any app; Quick Look, Open, Copy, Show in Finder, Share, Remove. Quick Look thumbnails at notch size.
+  - Clipboard history (off by default): text with small RTF, links, colors, images and file paths, deduplicated, with search (History window), pinning, delete, clear, pause, a maximum size and a retention period. Concealed and transient content, password managers and excluded apps are never kept. macOS 15.4 paste-access states are handled. Stored only on this Mac and never logged.
+  - New `collection` content style (tiles and rows) and `shelf` activity kind; horizontal scrolling reaches notch content.
+  - [ADR 0007](docs/decisions/0007-shelf-and-clipboard.md). 72 new unit tests (315 total).
+
 - Phase 3 — Now Playing, Calendar and context resolution:
   - Now Playing for Apple Music and Spotify behind a `MediaProvider` abstraction. Track, artist, album, artwork, progress and play/pause/next/previous, each marked unsupported when unavailable. It uses distributed notifications (no permission) and Apple Events (Automation permission, asked on the first control press); no private MediaRemote. NotchDeck never launches a media app. The Live Activity shows the artwork; the expanded card slides in a new track and cross-fades artwork. Paused music moves to the command center.
   - Calendar via EventKit: access requested only when the feature is turned on, with every permission state handled. Calendar selection, a configurable look-ahead (3/6/12/24 h) and notch timing (5/10/15/30 min). The next meeting escalates on the notch (30 at 15 min, 40 at 5 min, 50 from 1 min before, with an auto-peek). It shows "Starting now" with Join for 5 minutes, then expires. A schedule appears in the command center. Meeting links are found in the event URL, location or notes (Zoom, Meet, Teams, Webex, FaceTime and more). EventKit is queried only on changes and every 6 h; otherwise the provider wakes at the next event boundary.

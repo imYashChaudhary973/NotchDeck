@@ -24,6 +24,9 @@ final class NotchViewModel {
     /// The drag currently hovering the shelf, if any.
     private(set) var shelfDrag: ShelfDrag?
 
+    /// Where each drop tile is, in the same space as `ShelfDrag.location`. Reported by the tiles.
+    @ObservationIgnored private var shelfTileFrames: [NotchDrop.Target: CGRect] = [:]
+
     @ObservationIgnored let engine: ActivityEngine
     /// Called when measured content changes the size of the current surface.
     @ObservationIgnored var onLayoutChange: (() -> Void)?
@@ -81,6 +84,15 @@ final class NotchViewModel {
 
     func updateShelfDrag(_ drag: ShelfDrag?) {
         if shelfDrag != drag { shelfDrag = drag }
+    }
+
+    func setShelfTileFrame(_ frame: CGRect, for target: NotchDrop.Target) {
+        shelfTileFrames[target] = frame
+    }
+
+    /// The drop tile under the current drag (`.shelf` when it is over none of them).
+    var dropTarget: NotchDrop.Target {
+        ShelfDropTargeting.target(at: shelfDrag?.location, tileFrames: shelfTileFrames)
     }
 
     func openSettings() {

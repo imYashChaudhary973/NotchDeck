@@ -5,6 +5,7 @@ struct SettingsView: View {
     @Bindable var settings: AppSettings
     let launchAtLogin: LaunchAtLoginService
     let calendar: CalendarProvider
+    let clipboard: ClipboardProvider
 
     var body: some View {
         Form {
@@ -51,7 +52,7 @@ struct SettingsView: View {
             } header: {
                 Text("Features")
             } footer: {
-                Text("A feature that is off shows nothing and does no work. Turning off Timers cancels running timers; turning off Keep Awake lets the Mac sleep again. Turning on Calendar asks for calendar access.")
+                Text("A feature that is off shows nothing and does no work. Turning off Timers cancels running timers; turning off Keep Awake lets the Mac sleep again. Turning on Calendar asks for calendar access. Clipboard history is off until you turn it on.")
                     .foregroundStyle(.secondary)
             }
 
@@ -73,6 +74,23 @@ struct SettingsView: View {
 
             CalendarSettingsSection(settings: settings, calendar: calendar)
 
+            Section {
+                Toggle("Open the shelf as a drag approaches the notch", isOn: $settings.shelfOpensOnApproach)
+                Picker("Keep items", selection: $settings.shelfItemLifetime) {
+                    ForEach(ShelfLifetime.allCases) { lifetime in
+                        Text(lifetime.title).tag(lifetime)
+                    }
+                }
+            } header: {
+                Text("File Shelf")
+            } footer: {
+                Text("Drop files, links or text on the notch to keep them close. Files are referenced, not copied. Pinned items stay until removed; turning the shelf off removes everything on it.")
+                    .foregroundStyle(.secondary)
+            }
+            .disabled(!settings.shelfEnabled)
+
+            ClipboardSettingsSection(settings: settings, clipboard: clipboard)
+
             Section("About") {
                 LabeledContent("Version", value: Bundle.main.versionDescription)
             }
@@ -93,6 +111,8 @@ private extension SettingsView {
         case .quickActions: $settings.quickActionsEnabled
         case .music: $settings.musicEnabled
         case .calendar: $settings.calendarEnabled
+        case .shelf: $settings.shelfEnabled
+        case .clipboard: $settings.clipboardEnabled
         }
     }
 }
@@ -168,6 +188,87 @@ private struct CalendarSettingsSection: View {
                 }
             }
         )
+    }
+}
+
+/// Clipboard history: pause, limits, excluded apps and clearing.
+private struct ClipboardSettingsSection: View {
+    @Bindable var settings: AppSettings
+    let clipboard: ClipboardProvider
+    @State private var isConfirmingClear = false
+
+    var body: some View {
+        Section {
+            if settings.clipboardEnabled, clipboard.access != .allowed {
+                LabeledContent(clipboard.access == .denied ? "Clipboard access is off" : "macOS asks before each read") {
+                    Button("Open Privacy Settings…") {
+                        NSWorkspace.shared.open(ClipboardProvider.privacySettingsURL)
+                    }
+                }
+            }
+            Toggle("Pause keeping new copies", isOn: $settings.clipboardPaused)
+                .disabled(!settings.clipboardEnabled)
+            Picker("Keep up to", selection: $settings.clipboardMaxEntries) {
+                ForEach(AppSettings.clipboardMaxEntriesOptions, id: \.self) { count in
+                    Text("\(count) items").tag(count)
+                }
+            }
+            .disabled(!settings.clipboardEnabled)
+            Picker("Forget items after", selection: $settings.clipboardRetentionDays) {
+                ForEach(AppSettings.clipboardRetentionDaysOptions, id: \.self) { days in
+                    Text(Self.retentionTitle(days)).tag(days)
+                }
+            }
+            .disabled(!settings.clipboardEnabled)
+            LabeledContent("Never keep copies from") {
+                Button("Add App…", action: addExcludedApp)
+            }
+            .disabled(!settings.clipboardEnabled)
+            ForEach(settings.clipboardExcludedBundleIDs.sorted(), id: \.self) { bundleID in
+                LabeledContent(Self.appName(bundleID)) {
+                    Button("Remove") { settings.clipboardExcludedBundleIDs.remove(bundleID) }
+                }
+            }
+            LabeledContent("History") {
+                Button("Clear All…", role: .destructive) { isConfirmingClear = true }
+            }
+        } header: {
+            Text("Clipboard History")
+        } footer: {
+            Text("Copies are kept only on this Mac and never sent anywhere. Passwords and content marked private are never kept, nor are copies from password managers. Pinned items aren't limited or forgotten.")
+                .foregroundStyle(.secondary)
+        }
+        .confirmationDialog("Clear all clipboard history, including pinned items?", isPresented: $isConfirmingClear) {
+            Button("Clear All", role: .destructive) { clipboard.clearHistory(includingPinned: true) }
+        }
+        .onAppear { if clipboard.isRunning { clipboard.updateAccess() } }
+    }
+
+    static func retentionTitle(_ days: Int) -> String {
+        switch days {
+        case 0: "Never"
+        case 1: "1 day"
+        default: "\(days) days"
+        }
+    }
+
+    static func appName(_ bundleID: String) -> String {
+        guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID) else { return bundleID }
+        return FileManager.default.displayName(atPath: url.path)
+    }
+
+    private func addExcludedApp() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.applicationBundle]
+        panel.allowsMultipleSelection = true
+        panel.directoryURL = URL(filePath: "/Applications")
+        panel.prompt = "Exclude"
+        guard panel.runModal() == .OK else { return }
+        for url in panel.urls {
+            if let bundleID = Bundle(url: url)?.bundleIdentifier {
+                settings.clipboardExcludedBundleIDs.insert(bundleID)
+            }
+        }
     }
 }
 

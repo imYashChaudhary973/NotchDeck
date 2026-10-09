@@ -40,12 +40,14 @@ struct AppSettingsTests {
         defaults.removePersistentDomain(forName: suiteName)
     }
 
-    @Test func featuresAreOnByDefaultExceptCalendarAndScrollVolume() {
+    @Test func featuresAreOnByDefaultExceptCalendarClipboardAndScrollVolume() {
         let settings = AppSettings(defaults: defaults)
 
         // Calendar needs a permission, which is asked for only when the user turns it on.
         #expect(!settings.isEnabled(.calendar))
-        #expect(Feature.allCases.filter { $0 != .calendar }.allSatisfy(settings.isEnabled))
+        // Clipboard history keeps what the user copies, so it is opt-in.
+        #expect(!settings.isEnabled(.clipboard))
+        #expect(Feature.allCases.filter { $0 != .calendar && $0 != .clipboard }.allSatisfy(settings.isEnabled))
         #expect(!settings.scrollAdjustsVolume)
         #expect(settings.timerPlaysSound)
         defaults.removePersistentDomain(forName: suiteName)
@@ -101,6 +103,45 @@ struct AppSettingsTests {
 
         #expect(settings.calendarLookAheadHours == 12)
         #expect(settings.calendarNotchLeadMinutes == 15)
+        defaults.removePersistentDomain(forName: suiteName)
+    }
+
+    @Test func shelfAndClipboardOptionsHaveDefaultsAndPersist() {
+        let settings = AppSettings(defaults: defaults)
+        #expect(settings.shelfOpensOnApproach)
+        #expect(settings.shelfItemLifetime == .oneHour)
+        #expect(!settings.clipboardPaused)
+        #expect(settings.clipboardConfiguration.limits == ClipboardHistory.Limits(maxEntries: 50, retention: 7 * 86_400))
+        #expect(settings.clipboardConfiguration.excludedBundleIDs.isEmpty)
+
+        settings.shelfOpensOnApproach = false
+        settings.shelfItemLifetime = .endOfDay
+        settings.clipboardPaused = true
+        settings.clipboardMaxEntries = 200
+        settings.clipboardRetentionDays = 0
+        settings.clipboardExcludedBundleIDs = ["com.example.secret"]
+        let reloaded = AppSettings(defaults: defaults)
+
+        #expect(!reloaded.shelfOpensOnApproach)
+        #expect(reloaded.shelfItemLifetime == .endOfDay)
+        #expect(reloaded.clipboardConfiguration == ClipboardProvider.Configuration(
+            limits: ClipboardHistory.Limits(maxEntries: 200, retention: nil),
+            excludedBundleIDs: ["com.example.secret"],
+            isPaused: true
+        ))
+        defaults.removePersistentDomain(forName: suiteName)
+    }
+
+    @Test func unknownClipboardOptionsFallBackToDefaults() {
+        defaults.set(13, forKey: AppSettings.Key.clipboardMaxEntries)
+        defaults.set(3, forKey: AppSettings.Key.clipboardRetentionDays)
+        defaults.set("forever", forKey: AppSettings.Key.shelfItemLifetime)
+
+        let settings = AppSettings(defaults: defaults)
+
+        #expect(settings.clipboardMaxEntries == 50)
+        #expect(settings.clipboardRetentionDays == 7)
+        #expect(settings.shelfItemLifetime == .oneHour)
         defaults.removePersistentDomain(forName: suiteName)
     }
 }

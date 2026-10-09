@@ -14,6 +14,10 @@ final class ActivityEngine {
     /// The current resolution. Observed by the notch presentation layer.
     private(set) var resolution: ActivityResolution = .empty
 
+    /// Whether a registered provider accepts content dropped on the notch. Observed by the notch,
+    /// which opens its shelf for drags only while this is true.
+    private(set) var acceptsDrops = false
+
     /// Called after `resolution` changes, with the previous and new values.
     @ObservationIgnored var onResolutionChange: ((_ old: ActivityResolution, _ new: ActivityResolution) -> Void)?
 
@@ -53,6 +57,7 @@ final class ActivityEngine {
         }
         providers[provider.source] = provider
         providerOrder.append(provider.source)
+        updateAcceptsDrops()
         provider.start(publisher: ActivityPublisher(source: provider.source, engine: self))
         let displayed = displayedIDs(for: provider.source, in: displayedKeys)
         if !displayed.isEmpty {
@@ -64,8 +69,14 @@ final class ActivityEngine {
     func unregister(_ source: ActivitySource) {
         guard let provider = providers.removeValue(forKey: source) else { return }
         providerOrder.removeAll { $0 == source }
+        updateAcceptsDrops()
         provider.stop()
         withdrawAll(from: source)
+    }
+
+    private func updateAcceptsDrops() {
+        let accepts = providers.values.contains { $0.acceptsDrops }
+        if accepts != acceptsDrops { acceptsDrops = accepts }
     }
 
     // MARK: Activities
@@ -109,6 +120,18 @@ final class ActivityEngine {
     func routeNotchScroll(_ delta: Double) -> Bool {
         for source in providerOrder {
             if providers[source]?.handleNotchScroll(delta) == true { return true }
+        }
+        return false
+    }
+
+    /// Offers content dropped on the notch to providers that accept drops, in registration order.
+    /// Returns whether one took it.
+    @discardableResult
+    func routeDrop(_ drop: NotchDrop) -> Bool {
+        guard !drop.items.isEmpty else { return false }
+        for source in providerOrder {
+            guard let provider = providers[source], provider.acceptsDrops else { continue }
+            if provider.handleDrop(drop) { return true }
         }
         return false
     }

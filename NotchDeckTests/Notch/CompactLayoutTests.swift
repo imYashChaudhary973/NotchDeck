@@ -41,6 +41,7 @@ struct NotchPrewarmerTests {
         case .toggle: "toggle"
         case .actions: "actions"
         case .schedule: "schedule"
+        case .collection: "collection"
         }
     }
 
@@ -58,7 +59,7 @@ struct NotchPrewarmerTests {
     @Test func samplesCoverEveryPresentationStyle() {
         let samples = NotchPrewarmer.sampleActivities()
         #expect(Set(samples.map { contentStyle($0.presentation.content) })
-            == ["standard", "media", "level", "metric", "toggle", "actions", "schedule"])
+            == ["standard", "media", "level", "metric", "toggle", "actions", "schedule", "collection"])
         #expect(Set(samples.compactMap { accessoryStyle($0.presentation.compactAccessory) })
             == ["text", "symbol", "countdown", "progress"])
         #expect(samples.contains { $0.priority.requestsAttention && $0.presentation.statusText != nil })

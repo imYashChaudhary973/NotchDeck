@@ -11,8 +11,8 @@ The detailed brief for every phase — including its *Coding Agent Prompt* — i
 | 0 | Repository bootstrap | **Complete** |
 | 1 | Notch foundation + Activity Engine + State Machine | **Complete** |
 | 2 | Timers + Keep Awake + System Metrics + Audio + Quick Actions | **Complete** |
-| 3 | Music + Calendar + Context Resolution | **In Review** |
-| 4 | File Shelf + Clipboard | Not Started |
+| 3 | Music + Calendar + Context Resolution | **Complete** |
+| 4 | File Shelf + Clipboard | **In Review** |
 | 5 | Claude Code + Codex + generic developer activity protocol | Not Started |
 | 6 | Profiles + Settings + Onboarding + Accessibility + Performance + QA | Not Started |
 
@@ -118,7 +118,7 @@ Still to check on real hardware:
 
 ## Phase 3 — Music + Calendar + Context Resolution
 
-**Status:** In Review — implemented on `feature/phase-3-music-calendar` ([ADR 0006](docs/decisions/0006-media-and-calendar-providers.md)).
+**Status:** Complete — merged from `feature/phase-3-music-calendar` ([ADR 0006](docs/decisions/0006-media-and-calendar-providers.md)).
 
 Verification (2026-10-08, 14-inch M5 MacBook Pro): 243 unit tests pass with no warnings. The tests cover the calendar rules and their boundaries, meeting links, permission states (not determined, denied, restricted, write-only, declined prompt), the music player selection and capabilities, and the context sequence music → meeting → music. In the running app: a Music playback notification shows the Now Playing Live Activity and the command-center card; a track change slides the title in; pausing moves music to the command center. Calendar turned on by a launch argument shows the Allow Access row and no prompt. The scripts compile against Music's dictionary and don't launch Music when it isn't running. Meeting, schedule, starting-now and control-denied states were rendered off-screen and reviewed. Idle with Music, Spotify observers and Calendar registered: 0.0% CPU, 0 wake-ups; music on the notch: the same.
 
@@ -148,7 +148,15 @@ Still to check on real hardware (they need real playback or a permission answer,
 
 ## Phase 4 — File Shelf + Clipboard
 
-**Status:** Not Started
+**Status:** In Review — implemented on `feature/phase-4-shelf-clipboard` ([ADR 0007](docs/decisions/0007-shelf-and-clipboard.md)).
+
+Verification (2026-10-08, 14-inch M5 MacBook Pro): 315 unit tests pass with no warnings. The tests cover the shelf's lifecycle (drop, dedup, limit, remove, relaunch), expiration, pinning and retention choices, missing files, the Copy and AirDrop tiles, drop routing through the engine, the drag-approach rules, and clipboard deduplication, history limits, retention, pinning, search, classification, concealed/password-manager/excluded-app filtering, pause, access states and the app's own writes. The app launches with the shelf and clipboard history on at 0.0% CPU with no idle wake-ups reported by `top`.
+
+Still to check on real hardware (they need hands-on dragging or a permission answer):
+- [ ] Dragging files, a folder, a Safari link, selected text and a Photos image (file promise) onto the notch; the shelf opens before the Spaces bar does.
+- [ ] Dragging shelf items into Finder, Mail and Messages; Quick Look, Show in Finder, Share and AirDrop.
+- [ ] A file moved or renamed after dropping is still found; a deleted one shows Missing.
+- [ ] Turning clipboard history on: the "Paste from Other Apps" prompt (macOS 15.4+) appears once; copies from 1Password/Passwords aren't kept.
 
 **Goals**
 - Provide a temporary holding area for files and clipboard items.
@@ -164,8 +172,8 @@ Still to check on real hardware (they need real playback or a permission answer,
 - macOS opens Mission Control's Spaces bar when a drag rests at the top edge of the screen for about a second (observed during Phase 1 checks, with or without NotchDeck). The Shelf's drop targets must be easy to reach before that happens.
 
 **Completion Criteria**
-- Clipboard contents never logged or transmitted.
-- Shelf handles file references safely (validation, missing files).
+- [x] Clipboard contents never logged or transmitted.
+- [x] Shelf handles file references safely (validation, missing files).
 
 ---
 

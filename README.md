@@ -2,7 +2,7 @@
 
 A native macOS command center built around the MacBook notch.
 
-> **🚧 Currently being built.** The notch foundation (Phase 1) and the local utilities (Phase 2: timers, Keep Awake, system metrics, audio, quick actions) are complete. Now Playing (Music, Spotify) and Calendar (Phase 3) are implemented and in review. The Shelf, clipboard and developer integrations don't exist yet.
+> **🚧 Currently being built.** The notch foundation (Phase 1) and the local utilities (Phase 2: timers, Keep Awake, system metrics, audio, quick actions) are complete. Now Playing (Music, Spotify) and Calendar (Phase 3) are complete. The File Shelf and clipboard history (Phase 4) are implemented and in review. Developer integrations don't exist yet.
 
 ## Overview
 
@@ -34,8 +34,9 @@ Details in [`ARCHITECTURE.md`](ARCHITECTURE.md).
 | 0 — Repository bootstrap | Complete |
 | 1 — Notch foundation + Activity Engine + State Machine | Complete |
 | 2 — Timers + Keep Awake + System Metrics + Audio + Quick Actions | Complete |
-| 3 — Music + Calendar + Context Resolution | In Review |
-| 4–6 | Not Started |
+| 3 — Music + Calendar + Context Resolution | Complete |
+| 4 — File Shelf + Clipboard | In Review |
+| 5–6 | Not Started |
 
 ## Requirements
 

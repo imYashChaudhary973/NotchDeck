@@ -146,6 +146,8 @@ private struct FeaturedCard: View {
                 FeaturedHeader(activity: activity)
                 ScheduleList(activity: activity, schedule: schedule, model: model)
             }
+        case .collection(let collection):
+            CollectionFeatured(activity: activity, collection: collection, model: model)
         default:
             StandardFeatured(activity: activity, model: model)
         }
@@ -285,7 +287,7 @@ private struct ActionGrid: View {
     }
 }
 
-private struct FeaturedHeader: View {
+struct FeaturedHeader: View {
     let activity: NotchActivity
     var trailingText: String?
 
@@ -609,6 +611,8 @@ private struct WidgetRow: View {
                     CompactActionButtons(activity: activity, items: Array(actions.items.prefix(count)), model: model)
                 }
             }
+        case .collection(let collection):
+            CollectionWidgetTrailing(activity: activity, collection: collection)
         case .schedule:
             // The next entry ("11:00 Design Review").
             if let subtitle = activity.subtitle {

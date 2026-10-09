@@ -30,6 +30,14 @@ protocol ActivityProvider: AnyObject {
     /// Called when the user scrolls over the notch, with the scroll in normalized steps
     /// (positive = up). Return `true` if the provider handled it; the first provider that does wins.
     func handleNotchScroll(_ delta: Double) -> Bool
+
+    /// Whether the provider accepts content dropped on the notch. The notch opens its shelf for a
+    /// drag only while a registered provider does. Read when the provider is registered.
+    var acceptsDrops: Bool { get }
+
+    /// Called when the user drops content on the notch's shelf. Return `true` if the provider took
+    /// it; the first provider that does wins. A drop nobody takes returns to where it came from.
+    func handleDrop(_ drop: NotchDrop) -> Bool
 }
 
 extension ActivityProvider {
@@ -38,6 +46,8 @@ extension ActivityProvider {
     func adjust(actionID: ActivityAction.ID, to value: Double, on activityID: NotchActivity.ID) {}
     func displayedActivitiesChanged(_ ids: Set<NotchActivity.ID>) {}
     func handleNotchScroll(_ delta: Double) -> Bool { false }
+    var acceptsDrops: Bool { false }
+    func handleDrop(_ drop: NotchDrop) -> Bool { false }
 }
 
 /// A provider's handle into the Activity Engine, scoped to that provider's source.
